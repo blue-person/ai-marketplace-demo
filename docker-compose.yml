@@ -76,12 +76,13 @@ services:
     restart: unless-stopped
 
   worker:
-    # C++ robot that calls the backend on a timer.
+    # C++ robot that approves the complete registrations through the backend on a timer.
     build: ./worker
     environment:
       BACKEND_URL: http://backend:8000
-      WORKER_TOKEN: ${WORKER_TOKEN}
+      WORKER_API_KEY: ${WORKER_API_KEY:?Set WORKER_API_KEY in the .env file}
       WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       backend:
         condition: service_healthy
