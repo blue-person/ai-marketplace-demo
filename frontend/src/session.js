@@ -4,28 +4,28 @@ import { reactive } from "vue";
 import { api } from "./api";
 
 function read_stored_user() {
-  try {
-    return JSON.parse(localStorage.getItem("user"));
-  } catch {
-    return null;
-  }
+	try {
+		return JSON.parse(localStorage.getItem("user"));
+	} catch {
+		return null;
+	}
 }
 
 export const session = reactive({
-  user: read_stored_user(),
+	user: read_stored_user(),
 
-  start(user) {
-    this.user = user;
-    localStorage.setItem("user", JSON.stringify(user));
-  },
+	start(user) {
+		this.user = user;
+		localStorage.setItem("user", JSON.stringify(user));
+	},
 
-  async sign_out() {
-    await api("/auth/logout", { method: "POST" }).catch(() => {});
-    this.user = null;
-    localStorage.removeItem("user");
-  },
+	async sign_out() {
+		await api("/auth/logout", { method: "POST" }).catch(() => {});
+		this.user = null;
+		localStorage.removeItem("user");
+	},
 
-  is_active() {
-    return document.cookie.includes("session=") && this.user !== null;
-  },
+	is_active() {
+		return document.cookie.includes("session=") && this.user !== null;
+	},
 });
