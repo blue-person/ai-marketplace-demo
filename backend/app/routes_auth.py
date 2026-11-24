@@ -188,7 +188,7 @@ def login():
 
 
 # End the session of the current user
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def logout():
 	user = current_user()
 	if user is not None:
