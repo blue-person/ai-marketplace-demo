@@ -21,7 +21,7 @@ The C++ worker does not connect to the database. It calls the paths under `/api/
 
 ## Backend
 
-Each area of the API is a Flask blueprint registered in `backend/app/__init__.py`, and its file is named `routes_<area>.py`. The shared helpers are `config.py`, which reads the environment and `cases/marketplace/case.json`, and `db.py`, which opens one database connection for each request. They also include `security.py`, which provides the `login_required` and `role_required` decorators, `mail.py` for email and `external_api.py` for the AI service. Finally, `seed.py` creates the admin and the test accounts.
+Each area of the API is a Flask blueprint registered in `backend/app/__init__.py`, and its file is named `routes_<area>.py`. The shared helpers are `config.py`, which reads the environment and `cases/marketplace/case.json`, and `db.py`, which opens one database connection for each request. They also include `passwords.py`, which hashes and checks passwords and is the only file that knows the hashing library, `security.py`, which provides the `login_required` and `role_required` decorators, `mail.py` for email and `external_api.py` for the AI service. Finally, `seed.py` creates the admin and the test accounts.
 
 ## Data
 

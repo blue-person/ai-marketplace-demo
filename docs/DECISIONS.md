@@ -47,7 +47,7 @@ The change is in `backend/app/routes_auth.py` for the login and in `backend/app/
 
 ### Open points
 
-The login still compares the password hash inside the SQL statement, which will change when the password storage is replaced. The route that updates an account builds column names from the request, and placeholders cannot protect names, so it will need a fixed list of editable fields together with the access control work. The exact quotes of the OWASP pages have to be copied from the live pages before the final reports.
+The login no longer compares the password hash inside the SQL statement, because decision 2 moved the check to Python. The route that updates an account builds column names from the request, and placeholders cannot protect names, so it will need a fixed list of editable fields together with the access control work. The exact quotes of the OWASP pages have to be copied from the live pages before the final reports.
 
 ## 2. Store passwords with Argon2id
 
