@@ -27,6 +27,9 @@ ACTIONS = {
 	"audit_viewed": "account",
 	"credit_transfer": "credit",
 	"referral_bonus_paid": "credit",
+	"agent_submitted": "agent",
+	"agent_approved": "agent",
+	"agent_rejected": "agent",
 }
 CATEGORIES = tuple(dict.fromkeys(ACTIONS.values()))
 

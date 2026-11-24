@@ -20,6 +20,10 @@ SIGN_IN = "sign_in"
 SEND_CREDIT = "send_credit"
 RECEIVE_CREDIT = "receive_credit"
 VIEW_AUDIT = "view_audit"
+PUBLISH_AGENT = "publish_agent"
+LIST_OWN_AGENTS = "list_own_agents"
+VIEW_CATALOG = "view_catalog"
+REVIEW_AGENTS = "review_agents"
 
 
 # Account that asks to perform an action
@@ -139,6 +143,30 @@ def customer_receives_credit(_actor: Actor, target: AccountTarget) -> bool:
 # Only administrators can read the audit log
 @rules.add_rule(VIEW_AUDIT)
 def admin_views_audit(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "admin"
+
+
+# Only developers publish agents
+@rules.add_rule(PUBLISH_AGENT)
+def developer_publishes_agent(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "developer"
+
+
+# Only developers have agents of their own to list
+@rules.add_rule(LIST_OWN_AGENTS)
+def developer_lists_own_agents(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "developer"
+
+
+# People read the catalog and the robot does not
+@rules.add_rule(VIEW_CATALOG)
+def person_views_catalog(actor: Actor, _platform: Platform) -> bool:
+	return actor.role in ("developer", "company", "admin")
+
+
+# Only administrators list the pending agents and approve or reject them
+@rules.add_rule(REVIEW_AGENTS)
+def admin_reviews_agents(actor: Actor, _platform: Platform) -> bool:
 	return actor.role == "admin"
 
 

@@ -126,3 +126,12 @@ def test_every_category_of_the_code_exists_in_the_table():
 	enum = re.search(r"category\s+ENUM\(([^)]*)\)", SCHEMA.read_text()).group(1)
 	table_categories = set(re.findall(r"'(\w+)'", enum))
 	assert set(audit.ACTIONS.values()) == table_categories
+
+
+# The three events of the catalog belong to the agent category
+@pytest.mark.parametrize("action", ["agent_submitted", "agent_approved", "agent_rejected"])
+def test_the_agent_events_are_stored_in_the_agent_category(action):
+	tx = FakeTransaction()
+	audit.record(tx, action, "success", 3, 3, details={"agent_id": 7})
+	_sql, params = tx.inserts[0]
+	assert params[:3] == ("agent", action, "success")

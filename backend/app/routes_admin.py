@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 # Import modules
-from . import audit
+from . import agents, audit
 from .accounts import LastAdminError, change_status, list_accounts
 from .rbac import (
 	APPROVE_REGISTRATION,
@@ -10,6 +10,7 @@ from .rbac import (
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
 	REJECT_REGISTRATION,
+	REVIEW_AGENTS,
 	VIEW_AUDIT,
 	require,
 )
@@ -21,6 +22,7 @@ bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 # Constants
 NOT_PENDING = "The registration is not pending."
+AGENT_NOT_PENDING = "The agent is not pending."
 STATUS_NOT_CHANGEABLE = "The account is not in the status that this action needs."
 LAST_ADMIN = "The platform needs at least one active administrator."
 MAX_EMAIL_LENGTH = 254
@@ -59,6 +61,47 @@ def reject_registration(account_id):
 	if not reject_account(account_id, actor.id, reason):
 		return jsonify(error=NOT_PENDING), 409
 	return jsonify(message="The account was rejected.")
+
+
+# List the pending agents and the reasons that can be used to reject one
+@bp.get("/agents")
+@login_required
+def list_pending_agents():
+	require(current_actor(), REVIEW_AGENTS)
+	reasons = [{"key": key, "label": label} for key, label in agents.REJECTION_REASONS.items()]
+	return jsonify(agents=agents.pending_agents(), rejection_reasons=reasons)
+
+
+# Answer a review that changed nothing with a 404 when the agent does not exist and with a 409 when it is not pending
+def _agent_not_reviewed(agent_id: int):
+	if not agents.agent_exists(agent_id):
+		abort(404, description="The agent was not found.")
+	return jsonify(error=AGENT_NOT_PENDING), 409
+
+
+# Approve one pending agent so it appears in the catalog
+@bp.post("/agents/<int:agent_id>/approve")
+@login_required
+def approve_agent(agent_id):
+	actor = current_actor()
+	require(actor, REVIEW_AGENTS)
+	if not agents.approve_agent(agent_id, actor.id):
+		return _agent_not_reviewed(agent_id)
+	return jsonify(message="The agent was approved.")
+
+
+# Reject one pending agent with a reason from the list
+@bp.post("/agents/<int:agent_id>/reject")
+@login_required
+def reject_agent(agent_id):
+	actor = current_actor()
+	require(actor, REVIEW_AGENTS)
+	reason = read_json_object().get("reason")
+	if not isinstance(reason, str) or reason not in agents.REJECTION_REASONS:
+		abort(400, description="The reason is not valid.")
+	if not agents.reject_agent(agent_id, actor.id, reason):
+		return _agent_not_reviewed(agent_id)
+	return jsonify(message="The agent was rejected.")
 
 
 # List every account with the status action that the signed in administrator may use

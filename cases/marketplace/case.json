@@ -19,5 +19,12 @@
     {"name": "Pending Complete", "email": "pending.complete@marketplace.test", "role": "company", "organization": "Acme Labs", "country": "CO", "referred_by": "dev1@marketplace.test"},
     {"name": "Pending Incomplete", "email": "pending.incomplete@marketplace.test", "role": "developer"}
   ],
+  "agents": [
+    {"developer": "dev1@marketplace.test", "name": "Text Summarizer", "description": "Summarizes long texts into a few lines.", "price_usd": "0.50", "category": "writing", "test_endpoint": "https://text-summarizer.example.test/health", "model": "simulated/summary-1", "status": "approved"},
+    {"developer": "dev1@marketplace.test", "name": "Code Reviewer", "description": "Reads a code snippet and points out likely mistakes.", "price_usd": "1.25", "category": "coding", "test_endpoint": "https://code-reviewer.example.test/health", "model": "simulated/echo-1", "status": "approved"},
+    {"developer": "dev2@marketplace.test", "name": "Support Assistant", "description": "Drafts answers for customer support tickets.", "price_usd": "0.75", "category": "support", "test_endpoint": "https://support-assistant.example.test/health", "model": "simulated/echo-1", "status": "approved"},
+    {"developer": "dev2@marketplace.test", "name": "Market Researcher", "description": "Collects public facts about a market and lists the sources.", "price_usd": "2.00", "category": "research", "test_endpoint": "https://market-researcher.example.test/health", "model": "simulated/summary-1", "status": "pending"},
+    {"developer": "dev1@marketplace.test", "name": "Data Cleaner", "description": "Cleans a table.", "price_usd": "1.00", "category": "data", "test_endpoint": "https://data-cleaner.example.test/health", "model": "simulated/echo-1", "status": "rejected", "rejection_reason": "unclear_description"}
+  ],
   "external_api": {"name": "OpenRouter (simulated)", "simulator_url": "http://mock-api:9000/openrouter/api/v1"}
 }

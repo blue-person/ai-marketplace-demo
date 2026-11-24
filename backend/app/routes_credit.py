@@ -1,10 +1,11 @@
 # Import libraries
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from flask import Blueprint, abort, jsonify
 
 # Import modules
 from . import audit
 from .db import query, retry_on_deadlock, transaction
+from .money import parse_usd
 from .rbac import RECEIVE_CREDIT, SEND_CREDIT, can, require
 from .security import current_actor, current_user, find_target_by_email, login_required, read_json_object
 
@@ -12,7 +13,6 @@ from .security import current_actor, current_user, find_target_by_email, login_r
 bp = Blueprint("credit", __name__, url_prefix="/api/credit")
 
 # Constants
-CENT = Decimal("0.01")
 MAX_AMOUNT = Decimal("9999999999.99")
 HISTORY_LIMIT = 50
 
@@ -20,19 +20,6 @@ HISTORY_LIMIT = 50
 # Raised inside the transaction when the sender cannot pay so everything is undone
 class NotEnoughBalanceError(Exception):
 	pass
-
-
-# Turn the amount of the request into a positive Decimal with at most two decimals
-def _parse_amount(value) -> Decimal:
-	try:
-		amount = Decimal(str(value).strip())
-	except InvalidOperation:
-		abort(400, description="The amount is not a valid number.")
-
-	# The checks run in this order because NaN cannot be compared and huge exponents cannot be rounded
-	if not amount.is_finite() or not CENT <= amount <= MAX_AMOUNT or amount != amount.quantize(CENT):
-		abort(400, description="The amount must be between 0.01 and 9999999999.99 with at most two decimals.")
-	return amount
 
 
 # Lock both accounts in the order of their ids so two crossed transfers cannot deadlock
@@ -108,7 +95,7 @@ def create_transfer():
 	require(actor, SEND_CREDIT)
 	data = read_json_object()
 	recipient_email = str(data.get("recipient_email", "")).strip().lower()
-	amount = _parse_amount(data.get("amount"))
+	amount = parse_usd(data.get("amount"), MAX_AMOUNT)
 	sender_id = actor.id
 
 	# The recipient id and role never change, so they can be read before the transaction

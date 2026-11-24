@@ -105,6 +105,35 @@ def create_account(cursor, account: dict, password: str, status: str) -> bool:
 	return True
 
 
+# Insert an agent of the case unless its developer already has one with that name
+def create_agent(cursor, agent: dict, admin_id: int) -> bool:
+	developer_id = find_account_id(cursor, agent["developer"])
+	cursor.execute("SELECT id FROM agents WHERE developer_id = %s AND name = %s", (developer_id, agent["name"]))
+	if developer_id is None or cursor.fetchone():
+		return False
+
+	# An agent that is not pending also records the administrator that reviewed it
+	reviewed = agent["status"] != "pending"
+	cursor.execute(
+		"INSERT INTO agents (developer_id, name, description, price_usd, category, test_endpoint, model, "
+		"status, rejection_reason, reviewed_by, reviewed_at) "
+		"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, " + ("CURRENT_TIMESTAMP)" if reviewed else "NULL)"),
+		(
+			developer_id,
+			agent["name"],
+			agent["description"],
+			agent["price_usd"],
+			agent["category"],
+			agent["test_endpoint"],
+			agent["model"],
+			agent["status"],
+			agent.get("rejection_reason"),
+			admin_id if reviewed else None,
+		),
+	)
+	return True
+
+
 # Create the default accounts of the active case
 def main() -> int:
 	case = load_case()
@@ -125,6 +154,7 @@ def main() -> int:
 			"role": "admin",
 		}
 		created += create_account(cursor, admin, os.environ.get("ADMIN_PASSWORD", "admin123"), "active")
+		admin_id = find_account_id(cursor, admin["email"])
 
 		# Create the test accounts listed in cases/<case>/case.json
 		for account in case.get("test_accounts", []):
@@ -140,11 +170,12 @@ def main() -> int:
 			created += create_account(cursor, account, secrets.token_urlsafe(32), "active")
 			save_service_key(cursor, find_account_id(cursor, account["email"]), key)
 
-		# The seed data of the modules goes here
+		# Create the agents of the catalog in the three statuses
+		agents_created = sum(create_agent(cursor, agent, admin_id) for agent in case.get("agents", []))
 
 		# Save all accounts in a single transaction
 		conn.commit()
-		print(f"[seed] Case '{case['key']}': {created} new account(s).", flush=True)
+		print(f"[seed] Case '{case['key']}': {created} new account(s) and {agents_created} new agent(s).", flush=True)
 		return 0
 
 	# Undo partial changes when seeding fails

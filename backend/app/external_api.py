@@ -36,3 +36,14 @@ def post(address: str, body: dict) -> requests.Response:
 		return requests.post(address, json=body, headers=_headers(), timeout=15)
 	except requests.RequestException as error:
 		raise ExternalApiError(str(error)) from error
+
+
+# Return the identifiers of the models the external API offers and refuse an answer that is not a list of models
+def list_models() -> list[str]:
+	response = get(url("models"))
+	if not response.ok:
+		raise ExternalApiError(f"HTTP {response.status_code}")
+	try:
+		return [model["id"] for model in response.json()["data"]]
+	except (ValueError, KeyError, TypeError) as error:
+		raise ExternalApiError("The list of models has an unexpected format") from error

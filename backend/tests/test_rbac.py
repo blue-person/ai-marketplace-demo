@@ -8,17 +8,21 @@ from app import audit
 from app.rbac import (
 	APPROVE_REGISTRATION,
 	LIST_ACCOUNTS,
+	LIST_OWN_AGENTS,
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
 	MANAGE_API_KEY,
 	PLATFORM,
+	PUBLISH_AGENT,
 	RECEIVE_CREDIT,
 	REJECT_REGISTRATION,
 	RENAME_ACCOUNT,
+	REVIEW_AGENTS,
 	SEND_CREDIT,
 	SIGN_IN,
 	VIEW_ACCOUNT,
 	VIEW_AUDIT,
+	VIEW_CATALOG,
 	AccountTarget,
 	Actor,
 	can,
@@ -30,7 +34,9 @@ ADMIN = Actor(1, "admin", "active")
 BOT = Actor(2, "bot", "active")
 DEVELOPER = Actor(3, "developer", "active")
 OTHER_DEVELOPER = Actor(4, "developer", "active")
+COMPANY = Actor(5, "company", "active")
 SUSPENDED_ADMIN = Actor(1, "admin", "suspended")
+SUSPENDED_DEVELOPER = Actor(3, "developer", "suspended")
 COMPLETE = AccountTarget(10, "company", "pending", "Acme Labs", "CO")
 NO_ORGANIZATION = AccountTarget(11, "company", "pending", None, "CO")
 NO_COUNTRY = AccountTarget(12, "company", "pending", "Acme Labs", None)
@@ -203,3 +209,30 @@ def test_require_lets_a_permitted_request_through():
 # The platform marker is the default resource of the actions that act on no account
 def test_the_platform_marker_is_the_default_resource():
 	assert can(ADMIN, LIST_ACCOUNTS, PLATFORM) is True
+
+
+# Only a developer publishes an agent and lists the own ones
+@pytest.mark.parametrize("action", [PUBLISH_AGENT, LIST_OWN_AGENTS])
+@pytest.mark.parametrize("actor", [ADMIN, COMPANY, BOT, SUSPENDED_DEVELOPER])
+def test_only_an_active_developer_publishes_and_lists_own_agents(action, actor):
+	assert can(DEVELOPER, action) is True
+	assert can(actor, action) is False
+
+
+# The catalog is open to people and closed to the robot
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY, ADMIN])
+def test_a_person_views_the_catalog(actor):
+	assert can(actor, VIEW_CATALOG) is True
+
+
+# The robot and a suspended account cannot read the catalog
+@pytest.mark.parametrize("actor", [BOT, SUSPENDED_DEVELOPER, SUSPENDED_ADMIN])
+def test_the_robot_and_a_suspended_account_cannot_view_the_catalog(actor):
+	assert can(actor, VIEW_CATALOG) is False
+
+
+# Only an active administrator reviews the agents
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY, BOT, SUSPENDED_ADMIN])
+def test_only_an_active_admin_reviews_agents(actor):
+	assert can(ADMIN, REVIEW_AGENTS) is True
+	assert can(actor, REVIEW_AGENTS) is False
