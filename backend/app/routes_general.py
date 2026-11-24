@@ -3,15 +3,17 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
 from . import external_api
+from .countries import country_choices
 from .db import query, retry_on_deadlock, transaction
+from .registration import MAX_NAME_LENGTH, regenerate_api_key
 from .security import current_user, login_required
 
 # Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
 
 # Constants
-MAX_NAME_LENGTH = 120
-PUBLIC_ACCOUNT_COLUMNS = "id, name, email, role, status, created_at"
+PUBLIC_ACCOUNT_COLUMNS = "id, name, email, role, status, organization, country, created_at"
+OWNER_ACCOUNT_COLUMNS = PUBLIC_ACCOUNT_COLUMNS + ", referral_code"
 
 
 # Check that the database is reachable
@@ -25,10 +27,16 @@ def health():
 @bp.get("/config")
 def public_config():
 	case = current_app.config["CASE"]
+
+	# Only the roles that the backend opens to the public are sent for the sign up form
+	registration_roles = [
+		{"key": key, "label": role["label"]} for key, role in case["roles"].items() if role["public_registration"]
+	]
 	return jsonify(
 		case=case["key"],
 		name=case["name"],
-		roles=case["roles"],
+		registration_roles=registration_roles,
+		countries=country_choices(),
 		external_api=current_app.config["EXTERNAL_API_BASE_URL"],
 	)
 
@@ -49,13 +57,25 @@ def directory():
 # Profile routes
 
 
+# Read the profile of the owner with the code and the prefix of the key
+def _owner_account(account_id: int) -> dict:
+	account = query(f"SELECT {OWNER_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
+	key = query("SELECT key_prefix FROM api_keys WHERE account_id = %s", (account_id,), one=True)
+	account["api_key_prefix"] = key["key_prefix"] if key else None
+	return account
+
+
 # Return the profile of one account to its owner or to an administrator
 @bp.get("/accounts/<int:account_id>")
 @login_required
 def get_account(account_id):
 	user = current_user()
-	if account_id != user["id"] and user["role"] != "admin":
+	if account_id == user["id"]:
+		return jsonify(account=_owner_account(account_id))
+	if user["role"] != "admin":
 		abort(403)
+
+	# An administrator sees the public columns of other accounts and never their codes
 	account = query(f"SELECT {PUBLIC_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
 	if not account:
 		abort(404)
@@ -83,8 +103,19 @@ def update_account(account_id):
 
 	# Keep the name stored in the session in sync after a rename
 	session["name"] = name
-	account = query(f"SELECT {PUBLIC_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
-	return jsonify(account=account)
+	return jsonify(account=_owner_account(account_id))
+
+
+# Replace the API key of the signed in account and show the new one only once
+@bp.post("/accounts/<int:account_id>/api-key")
+@login_required
+def create_api_key(account_id):
+	if account_id != current_user()["id"]:
+		abort(403)
+	api_key = regenerate_api_key(account_id)
+	if api_key is None:
+		abort(403, description="Only active accounts have an API key.")
+	return jsonify(api_key=api_key.key, api_key_prefix=api_key.prefix), 201
 
 
 # Call the external API or the url in the query string

@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 # Import modules
-from . import db, routes_auth, routes_credit, routes_general, routes_internal
+from . import db, routes_admin, routes_auth, routes_credit, routes_general, routes_internal
 from .config import load_config
 
 
@@ -18,6 +18,7 @@ def create_app() -> Flask:
 	# Register the route blueprints
 	app.register_blueprint(routes_general.bp)
 	app.register_blueprint(routes_auth.bp)
+	app.register_blueprint(routes_admin.bp)
 	app.register_blueprint(routes_credit.bp)
 	app.register_blueprint(routes_internal.bp)
 

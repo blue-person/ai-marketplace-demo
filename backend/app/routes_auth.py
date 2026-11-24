@@ -3,8 +3,11 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
 from . import mail
+from .countries import is_valid_country
 from .db import DuplicateError, query, retry_on_deadlock, transaction
+from .email_address import InvalidEmailError, normalize_email
 from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
+from .registration import MAX_NAME_LENGTH, find_referrer_id, is_valid_organization
 from .security import current_user, login_required
 
 # Blueprint of the auth routes
@@ -16,11 +19,12 @@ LOGIN_ERROR = "Incorrect email or password."
 
 # Insert the account in one transaction and repeat it after a deadlock
 @retry_on_deadlock
-def _create_account(name: str, email: str, password_hash: str, role: str, status: str) -> int:
+def _create_account(values: tuple) -> int:
 	with transaction() as tx:
 		return tx.insert(
-			"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, %s)",
-			(name, email, password_hash, role, status),
+			"INSERT INTO accounts (name, email, password_hash, role, status, organization, country, referred_by) "
+			"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+			values,
 		)
 
 
@@ -36,28 +40,59 @@ def _data() -> dict:
 	return request.get_json(silent=True) or request.form.to_dict()
 
 
+# Read the optional profile fields and refuse the ones that are not valid
+def _read_profile(data: dict) -> tuple:
+	organization = str(data.get("organization", "")).strip()
+	country = str(data.get("country", "")).strip()
+	if organization and not is_valid_organization(organization):
+		abort(400, description="The organization must have between 2 and 100 characters.")
+	if country and not is_valid_country(country):
+		abort(400, description="The country is not valid.")
+
+	# An empty field is stored as NULL so the profile counts as incomplete
+	return organization or None, country or None
+
+
+# Return the id of the referrer or None when no code was sent
+def _read_referrer_id(data: dict) -> int | None:
+	code = str(data.get("referral_code", "")).strip()
+	if not code:
+		return None
+	referrer_id = find_referrer_id(code)
+	if referrer_id is None:
+		abort(400, description="The referral code is not valid.")
+	return referrer_id
+
+
 # Create an account and send a registration email
 @bp.post("/register")
 def register():
 	data = _data()
 	name = str(data.get("name", "")).strip()
-	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
-	role = data.get("role", "")
-
-	if not name or not email or "@" not in email:
-		abort(400, description="Name and email are required.")
-	if len(password) < MIN_PASSWORD_LENGTH:
-		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
-
+	role = str(data.get("role", ""))
 	roles = current_app.config["CASE"]["roles"]
 
+	# Only the roles that the case opens to the public can be requested
+	if not roles.get(role, {}).get("public_registration"):
+		abort(400, description="The account type is not valid.")
+	if not name or len(name) > MAX_NAME_LENGTH:
+		abort(400, description=f"The name must have between 1 and {MAX_NAME_LENGTH} characters.")
+	try:
+		email = normalize_email(str(data.get("email", "")))
+	except InvalidEmailError as error:
+		abort(400, description=str(error))
+	if len(password) < MIN_PASSWORD_LENGTH:
+		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
+	organization, country = _read_profile(data)
+	referrer_id = _read_referrer_id(data)
+
 	# The account needs approval only when its role requires it in case.json
-	status = "pending" if roles.get(role, {}).get("requires_approval") else "active"
+	status = "pending" if roles[role]["requires_approval"] else "active"
 
 	# The unique key on the email decides which of two simultaneous sign ups wins
 	try:
-		_create_account(name, email, hash_password(password), role, status)
+		_create_account((name, email, hash_password(password), role, status, organization, country, referrer_id))
 	except DuplicateError:
 		return jsonify(error="The email is already registered."), 409
 
