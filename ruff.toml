@@ -4,3 +4,7 @@ indent-width = 4
 
 [format]
 indent-style = "tab"
+
+[lint.isort]
+# The standard library and third party imports share one block under a single section comment
+no-lines-before = ["third-party"]

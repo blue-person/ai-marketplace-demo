@@ -1,24 +1,14 @@
-"""Simulator of the cases' external APIs.
-
-- /openrouter/api/v1/...  imitates the shape of the OpenRouter API (OpenAI compatible).
-- /openmhealth/v1/...     returns wearable data with a structure inspired by the
-                          Open mHealth schemas (it is not an exact replica).
-
-Lets you develop and audit without real keys or costs. The data is
-deterministic: the same user and the same metric always produce the same series.
-Some readings are deliberately out of range so alerts can be tested.
-"""
-
+# Import libraries
 import hashlib
 import random
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
+# Constants
 MODELS = {
 	"simulated/echo-1": {"name": "Echo 1 (simulated)", "prompt": "0.000001", "completion": "0.000002"},
 	"simulated/summary-1": {"name": "Summary 1 (simulated)", "prompt": "0.000003", "completion": "0.000006"},
@@ -26,7 +16,6 @@ MODELS = {
 }
 
 METRICS = {
-	# schema: (body field, unit, normal minimum, normal maximum, outlier value)
 	"heart-rate": ("heart_rate", "beats/min", 58, 105, 138),
 	"step-count": ("step_count", "steps", 2000, 11000, 0),
 	"oxygen-saturation": ("oxygen_saturation", "%", 94, 99, 86),
@@ -38,6 +27,7 @@ def error(code: int, message: str):
 	return jsonify(error={"code": code, "message": message}), code
 
 
+# Every route except the health check requires a Bearer key
 @app.before_request
 def require_key():
 	if request.path == "/health":
@@ -53,7 +43,7 @@ def health():
 	return jsonify(status="ok")
 
 
-# ----------------------------------------------------------------- OpenRouter
+# OpenRouter routes
 @app.get("/openrouter/api/v1/models")
 def models():
 	return jsonify(
@@ -73,12 +63,17 @@ def chat():
 		return error(400, f"Unknown model: {model!r}. See /models.")
 	if not isinstance(messages, list) or not messages:
 		return error(400, "'messages' must be a non-empty list.")
+
+	# The slow model waits five seconds to mimic a long request
 	if model == "simulated/slow-1":
 		time.sleep(5)
 
+	# Echo the last message cut to 200 characters
 	last = str(messages[-1].get("content", "")) if isinstance(messages[-1], dict) else ""
 	input_text = " ".join(str(m.get("content", "")) for m in messages if isinstance(m, dict))
 	content = f"[Simulated reply from {model}] I received: {last[:200]}"
+
+	# Count words as a rough estimate of the token usage
 	input_tokens = max(1, len(input_text.split()))
 	output_tokens = len(content.split())
 	return jsonify(
@@ -95,7 +90,7 @@ def chat():
 	)
 
 
-# ---------------------------------------------------------------- Open mHealth
+# Open mHealth routes
 @app.get("/openmhealth/v1/dataPoints")
 def data_points():
 	schema = request.args.get("schema", "")
@@ -110,14 +105,21 @@ def data_points():
 		return error(400, "The 'user' parameter is required.")
 
 	field, unit, minimum, maximum, outlier = METRICS[schema]
+
+	# Seed the random generator from the user and metric so the same input gives the same data
 	seed = int(hashlib.sha256(f"{user}:{schema}".encode()).hexdigest()[:16], 16)
 	rng = random.Random(seed)
+
+	# Heart rate and oxygen saturation are sampled hourly and the other metrics daily
 	per_day = 24 if schema in ("heart-rate", "oxygen-saturation") else 1
 	now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
+	# The shape is inspired by Open mHealth schemas but is not an exact replica
 	points = []
 	for i in range(days * per_day):
 		moment = now - timedelta(hours=i) if per_day == 24 else now - timedelta(days=i)
+
+		# About 5 percent of the values are out of range so alerts can be tested
 		value = outlier if rng.random() < 0.05 else rng.randint(minimum, maximum)
 		points.append(
 			{

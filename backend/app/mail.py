@@ -1,9 +1,7 @@
-"""Sends email. In the template every message goes to Mailpit (http://localhost:8025)."""
-
+# Import libraries
 import logging
 import smtplib
 from email.message import EmailMessage
-
 from flask import current_app
 
 log = logging.getLogger(__name__)
@@ -15,6 +13,8 @@ def send(recipient: str, subject: str, body: str) -> bool:
 	message["To"] = recipient
 	message["Subject"] = subject
 	message.set_content(body)
+
+	# A mail failure is logged and returns False so it does not stop the request
 	try:
 		with smtplib.SMTP(current_app.config["SMTP_HOST"], current_app.config["SMTP_PORT"], timeout=5) as smtp:
 			smtp.send_message(message)

@@ -1,7 +1,7 @@
-"""Support routes and examples: health, config, directory, profile and external API."""
-
+# Import libraries
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
+# Import modules
 from . import external_api
 from .db import commit, execute, query
 from .security import login_required
@@ -26,12 +26,12 @@ def public_config():
 	)
 
 
-# ------------------------------------------------------------------ Directory
+# Search active accounts by name
 @bp.get("/directory")
 def directory():
-	"""Searches active accounts by name. Example for the case's directory or catalog."""
 	term = request.args.get("q", "")
-	# The whole pattern, wildcards included, is sent as one parameter.
+
+	# Send the whole pattern as one parameter
 	results = query(
 		"SELECT id, name, role FROM accounts WHERE status = 'active' AND name LIKE %s ORDER BY name",
 		(f"%{term}%",),
@@ -39,7 +39,7 @@ def directory():
 	return jsonify(results=results)
 
 
-# -------------------------------------------------------------------- Profile
+# Profile routes
 @bp.get("/accounts/<int:account_id>")
 @login_required
 def get_account(account_id):
@@ -58,16 +58,17 @@ def update_account(account_id):
 	assignments = ", ".join(f"{field} = %s" for field in data)
 	execute(f"UPDATE accounts SET {assignments} WHERE id = %s", (*data.values(), account_id))
 	commit()
+
+	# Keep the name stored in the session in sync after a rename
 	if account_id == session.get("account_id") and "name" in data:
 		session["name"] = data["name"]
 	return jsonify(account=query("SELECT * FROM accounts WHERE id = %s", (account_id,), one=True))
 
 
-# --------------------------------------------------------------- External API
+# Call the external API of the case or the url given in the query string
 @bp.get("/example/external-api")
 @login_required
 def external_api_example():
-	"""Queries the case's external API. Optionally receives the URL to query."""
 	case_key = current_app.config["CASE"]["key"]
 	address = request.args.get("url")
 	try:
@@ -80,6 +81,8 @@ def external_api_example():
 				params={"schema": "heart-rate", "user": session["account_id"], "days": 1},
 			)
 			return jsonify(source="Open mHealth (simulated)", samples=response.json()[:5])
+
+		# Other cases call the simulated chat completion endpoint
 		response = external_api.post(
 			external_api.url("chat/completions"),
 			{"model": "simulated/echo-1", "messages": [{"role": "user", "content": "Hello from the template"}]},

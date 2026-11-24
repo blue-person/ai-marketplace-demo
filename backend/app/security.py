@@ -1,7 +1,5 @@
-"""Authentication and authorization helpers."""
-
+# Import libraries
 from functools import wraps
-
 from flask import abort, session
 
 
@@ -26,9 +24,8 @@ def login_required(view):
 	return wrapper
 
 
+# Use it below the route decorator as in @role_required("admin")
 def role_required(*roles):
-	"""Usage: @role_required("admin") below the route definition."""
-
 	def decorator(view):
 		@wraps(view)
 		def wrapper(*args, **kwargs):

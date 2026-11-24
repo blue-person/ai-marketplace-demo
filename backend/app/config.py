@@ -1,15 +1,15 @@
-"""Loads configuration from environment variables."""
-
+# Import libraries
 import json
 import os
 from datetime import timedelta
 from pathlib import Path
 
+# Constants
 CASES_ROOT = Path(__file__).resolve().parents[2] / "cases"
 
 
+# Read the case.json of the case named in CASE
 def load_case() -> dict:
-	"""Reads cases/<case>/case.json: roles, test accounts and external API."""
 	case_key = os.environ.get("CASE", "healthsync").lower()
 	with open(CASES_ROOT / case_key / "case.json", encoding="utf-8") as file:
 		data = json.load(file)
@@ -30,11 +30,13 @@ def db_params() -> dict:
 
 def load_config() -> dict:
 	case = load_case()
+
 	external_url = os.environ.get("EXTERNAL_API_BASE_URL", "").strip() or case["external_api"]["simulator_url"]
+
+	# The cookie stays readable by JavaScript because the frontend checks it to know if a session is open
 	return {
 		"SECRET_KEY": os.environ.get("SECRET_KEY", "template-secret"),
 		"SESSION_COOKIE_NAME": "session",
-		# The frontend checks the cookie to know whether a session is open.
 		"SESSION_COOKIE_HTTPONLY": False,
 		"PERMANENT_SESSION_LIFETIME": timedelta(days=30),
 		"CASE": case,
