@@ -5,6 +5,7 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 from . import audit, external_api
 from .countries import country_choices
 from .db import query, retry_on_deadlock, transaction
+from .passwords import PASSWORD_RULES
 from .rbac import MANAGE_API_KEY, RENAME_ACCOUNT, VIEW_ACCOUNT
 from .registration import MAX_NAME_LENGTH, regenerate_api_key
 from .security import authorized_target, current_actor, login_required
@@ -38,6 +39,7 @@ def public_config():
 		name=case["name"],
 		registration_roles=registration_roles,
 		countries=country_choices(),
+		password_rules=PASSWORD_RULES,
 		external_api=current_app.config["EXTERNAL_API_BASE_URL"],
 	)
 

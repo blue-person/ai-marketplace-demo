@@ -6,7 +6,14 @@ from . import audit, mail
 from .countries import is_valid_country
 from .db import DuplicateError, query, retry_on_deadlock, transaction
 from .email_address import InvalidEmailError, normalize_email
-from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
+from .passwords import (
+	MAX_PASSWORD_LENGTH,
+	PASSWORD_RULES,
+	hash_password,
+	is_acceptable_password,
+	needs_rehash,
+	verify_password,
+)
 from .rbac import SIGN_IN, Actor, can
 from .registration import MAX_NAME_LENGTH, find_referrer_id, is_valid_organization
 from .security import current_user, login_required
@@ -103,8 +110,8 @@ def register():
 		email = normalize_email(str(data.get("email", "")))
 	except InvalidEmailError as error:
 		abort(400, description=str(error))
-	if len(password) < MIN_PASSWORD_LENGTH:
-		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
+	if not is_acceptable_password(password):
+		abort(400, description=PASSWORD_RULES)
 	organization, country = _read_profile(data)
 	referrer_id = _read_referrer_id(data)
 
@@ -138,6 +145,11 @@ def login():
 	data = _data()
 	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
+
+	# A password longer than the maximum cannot be valid, so it is refused before the costly hash
+	if len(password) > MAX_PASSWORD_LENGTH:
+		_record_login_failure(None, email, "wrong_credentials")
+		return jsonify(error=LOGIN_ERROR), 401
 
 	# Search the account by email
 	account = query(

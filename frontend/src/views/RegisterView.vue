@@ -5,6 +5,7 @@ import { api } from "@/api";
 // The backend decides which account types and countries exist.
 const roles = ref([]);
 const countries = ref([]);
+const password_rules = ref("");
 const form = ref({ name: "", email: "", password: "", role: "", organization: "", country: "", referral_code: "" });
 const message = ref("");
 const error = ref("");
@@ -14,6 +15,7 @@ onMounted(async () => {
 		const config = await api("/config");
 		roles.value = config.registration_roles;
 		countries.value = config.countries;
+		password_rules.value = config.password_rules;
 		if (roles.value.length) form.value.role = roles.value[0].key;
 	} catch (e) {
 		error.value = e.message;
@@ -52,7 +54,9 @@ async function register() {
 					type="password"
 					class="form-control"
 					autocomplete="new-password"
+					aria-describedby="password_rules"
 				/>
+				<div id="password_rules" class="form-text">{{ password_rules }}</div>
 			</div>
 			<div class="mb-3">
 				<label class="form-label" for="role">Account type</label>
