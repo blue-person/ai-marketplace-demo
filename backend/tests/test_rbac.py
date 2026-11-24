@@ -18,6 +18,7 @@ from app.rbac import (
 	SEND_CREDIT,
 	SIGN_IN,
 	VIEW_ACCOUNT,
+	VIEW_AUDIT,
 	AccountTarget,
 	Actor,
 	can,
@@ -79,6 +80,18 @@ def test_a_suspended_admin_cannot_list_registrations():
 @pytest.mark.parametrize("action", [LIST_ACCOUNTS, SIGN_IN, SEND_CREDIT])
 def test_bot_is_refused_the_platform_actions_outside_the_approval_flow(action):
 	assert can(BOT, action) is False
+
+
+# Only an administrator reads the audit log
+@pytest.mark.parametrize("actor", [DEVELOPER, BOT])
+def test_only_an_admin_views_the_audit_log(actor):
+	assert can(ADMIN, VIEW_AUDIT) is True
+	assert can(actor, VIEW_AUDIT) is False
+
+
+# A suspended administrator cannot read the audit log
+def test_a_suspended_admin_cannot_view_the_audit_log():
+	assert can(SUSPENDED_ADMIN, VIEW_AUDIT) is False
 
 
 # The robot cannot touch accounts even its own

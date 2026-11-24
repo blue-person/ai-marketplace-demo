@@ -19,6 +19,7 @@ MANAGE_API_KEY = "manage_api_key"
 SIGN_IN = "sign_in"
 SEND_CREDIT = "send_credit"
 RECEIVE_CREDIT = "receive_credit"
+VIEW_AUDIT = "view_audit"
 
 
 # Account that asks to perform an action
@@ -133,6 +134,12 @@ def customer_sends_credit(actor: Actor, _platform: Platform) -> bool:
 @rules.add_rule(RECEIVE_CREDIT)
 def customer_receives_credit(_actor: Actor, target: AccountTarget) -> bool:
 	return target.role in ("developer", "company")
+
+
+# Only administrators can read the audit log
+@rules.add_rule(VIEW_AUDIT)
+def admin_views_audit(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "admin"
 
 
 # No rule can be added after this point and queries are accepted only from here

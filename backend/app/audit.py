@@ -28,6 +28,7 @@ ACTIONS = {
 	"credit_transfer": "credit",
 	"referral_bonus_paid": "credit",
 }
+CATEGORIES = tuple(dict.fromkeys(ACTIONS.values()))
 
 
 # Refuse an action or an outcome that the table cannot store
@@ -94,23 +95,24 @@ def _read_details(value) -> dict | None:
 	return value
 
 
-# List the newest events first and narrow them with the filters that are not None
+# List the newest events first and narrow them with the filters that are given
 def list_events(
 	category: str | None = None,
 	action: str | None = None,
-	actor_id: int | None = None,
-	target_id: int | None = None,
+	account_email: str | None = None,
 	before_id: int | None = None,
 ) -> list[dict]:
+
+	# Each condition has the values for its placeholders and is used only when the first one is given
 	filters = {
-		"e.category = %s": category,
-		"e.action = %s": action,
-		"e.actor_id = %s": actor_id,
-		"e.target_id = %s": target_id,
-		"e.id < %s": before_id,
+		"e.category = %s": (category,),
+		"e.action = %s": (action,),
+		"(actor.email = %s OR target.email = %s OR e.target_label = %s)": (account_email,) * 3,
+		"e.id < %s": (before_id,),
 	}
-	conditions = [sql for sql, value in filters.items() if value is not None]
-	params = [value for value in filters.values() if value is not None]
+	used = {sql: values for sql, values in filters.items() if values[0] is not None}
+	conditions = list(used)
+	params = [value for values in used.values() for value in values]
 	where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
 	# The conditions are fixed texts and every value travels as a parameter

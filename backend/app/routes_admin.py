@@ -2,6 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 # Import modules
+from . import audit
 from .accounts import LastAdminError, change_status, list_accounts
 from .rbac import (
 	APPROVE_REGISTRATION,
@@ -9,6 +10,7 @@ from .rbac import (
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
 	REJECT_REGISTRATION,
+	VIEW_AUDIT,
 	require,
 )
 from .registration import REJECTION_REASONS, approve_account, pending_registrations, reject_account
@@ -21,6 +23,7 @@ bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 NOT_PENDING = "The registration is not pending."
 STATUS_NOT_CHANGEABLE = "The account is not in the status that this action needs."
 LAST_ADMIN = "The platform needs at least one active administrator."
+MAX_EMAIL_LENGTH = 254
 
 
 # List the pending registrations and the reasons that can be used to reject one
@@ -92,3 +95,38 @@ def suspend_account(account_id):
 @login_required
 def reactivate_account(account_id):
 	return _change_account_status(account_id, "suspended", "active", "The account was reactivated.")
+
+
+# Read the filters of the audit log and refuse the values that are not valid
+def _read_audit_filters() -> dict:
+	category = request.args.get("category") or None
+	action = request.args.get("action") or None
+	account_email = (request.args.get("account") or "").strip().lower() or None
+	before_id = request.args.get("before_id", type=int)
+	if category is not None and category not in audit.CATEGORIES:
+		abort(400, description="The category is not valid.")
+	if action is not None and action not in audit.ACTIONS:
+		abort(400, description="The action is not valid.")
+	if account_email is not None and len(account_email) > MAX_EMAIL_LENGTH:
+		abort(400, description="The account is not valid.")
+	if "before_id" in request.args and before_id is None:
+		abort(400, description="The page marker is not valid.")
+	return {"category": category, "action": action, "account_email": account_email, "before_id": before_id}
+
+
+# List a page of audit events and record that the administrator read them
+@bp.get("/audit")
+@login_required
+def list_audit_events():
+	actor = current_actor()
+	require(actor, VIEW_AUDIT)
+	filters = _read_audit_filters()
+	events = audit.list_events(**filters)
+
+	# The page marker is left out of the record because it only says which page was read
+	used = {key: value for key, value in filters.items() if value is not None and key != "before_id"}
+	audit.record_alone("audit_viewed", "success", actor.id, details=used or None)
+
+	# A full page means there may be older events, and the last id is the marker to ask for them
+	next_before_id = events[-1]["id"] if len(events) == audit.PAGE_SIZE else None
+	return jsonify(events=events, categories=audit.CATEGORIES, next_before_id=next_before_id)

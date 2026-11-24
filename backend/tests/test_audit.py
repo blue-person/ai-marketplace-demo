@@ -94,6 +94,26 @@ def test_list_events_sends_the_filter_as_a_parameter(monkeypatch):
 	assert params == ("x' OR '1'='1", audit.PAGE_SIZE)
 
 
+# The email of an account matches the actor, the target and the email typed in a failed login
+def test_list_events_filters_an_account_by_email_on_the_three_columns(monkeypatch):
+	calls = []
+	monkeypatch.setattr(audit, "query", lambda sql, params=(), one=False: calls.append((sql, params)) or [])
+	audit.list_events(account_email="a@b.test")
+	sql, params = calls[0]
+	assert "actor.email = %s" in sql and "target.email = %s" in sql and "e.target_label = %s" in sql
+	assert params == ("a@b.test", "a@b.test", "a@b.test", audit.PAGE_SIZE)
+
+
+# Two filters are joined with AND and keep the order of their values
+def test_list_events_joins_the_filters_with_and(monkeypatch):
+	calls = []
+	monkeypatch.setattr(audit, "query", lambda sql, params=(), one=False: calls.append((sql, params)) or [])
+	audit.list_events(category="authn", before_id=40)
+	sql, params = calls[0]
+	assert "e.category = %s AND e.id < %s" in sql
+	assert params == ("authn", 40, audit.PAGE_SIZE)
+
+
 # The details come back as a dictionary and not as JSON text
 def test_list_events_returns_the_details_as_a_dictionary(monkeypatch):
 	rows = [{"id": 1, "details": '{"from": "A", "to": "B"}'}]
