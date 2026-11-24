@@ -1,133 +1,59 @@
-# Project template: Software Security
+# AI Agent Marketplace
 
-Common starting point for the course's two cases: **HealthSync** and **AI Agent Marketplace**. It provides the base infrastructure defined in Docker Compose (web, backend, database, C++ robot, test mail and external API simulator) and usage examples for each piece of the stack. The business modules of each case are built by the group.
+This project is a web platform where developers publish artificial intelligence (AI) agents and companies run them and pay for each use. It was built for the Software Security course, so its code is meant to be read, tested and audited by another group and later corrected by its own team.
 
-- Assignment and starting point of each case: [`cases/healthsync`](cases/healthsync/README.md) and [`cases/marketplace`](cases/marketplace/README.md).
-- If you are the **auditor group** and received another group's ZIP: read [`GUIA_AUDITOR.md`](GUIA_AUDITOR.md).
+## Current status
 
-**All pieces of the stack must be kept in your project**: Vue frontend served by nginx, Flask backend, MySQL, C++ robot, mail and external API consumption. You may modify, replace or extend the examples, but not remove a piece.
+The starter base works, and it includes sign up, sign in, a searchable directory, an editable profile, test emails, a call to a simulated external AI service and a C++ robot that runs on a timer. The business modules, namely the admin approval panel, the agent catalog, agent execution, scheduled executions and credit transfers, have not been built yet. This document describes only what exists today and will grow as each module is completed.
 
-## Architecture
+## Services
 
-```
-Browser ──► localhost:8080 ── web (nginx + Vue SPA) ──/api──► backend (Flask + gunicorn)
-                                                                │      │       │
-                                                               db   mailpit  mock-api
-                                                            (MySQL)  (mail)  (simulated external API)
-                                                                ▲
-                                             worker (C++ robot) ┘ via /api/internal
-```
+The application runs as seven services under Docker Compose, which are described in the following table.
 
-| Service | Technology | Purpose |
+| Service | Technology | What it does |
 |---|---|---|
-| `web` | nginx 1.30 + Vue 3 + Bootstrap 5 | Serves the SPA and proxies `/api` to the backend. |
-| `backend` | Python 3.13, Flask 3.1, gunicorn | REST API with the business logic. |
-| `seed` | (same image as the backend) | Runs once at startup and creates the administrator and the test accounts. |
-| `db` | MySQL 8.4 LTS | Database. |
-| `worker` | C++17 + libcurl | Periodic robot. Calls the backend's `/api/internal/*`. |
-| `mailpit` | Mailpit | Captures every email the application sends. Nothing leaves for the Internet. |
-| `mock-api` | Flask | Simulates OpenRouter (marketplace) and Open mHealth-style wearable data (HealthSync). It is not part of your application: it stands for a third-party service. |
-
-## Included examples
-
-| Piece | Example | Where |
-|---|---|---|
-| Database | Sign up, sign in, directory with search, profile view and edit | `backend/app/routes_auth.py`, `routes_general.py` |
-| External API | Query to the simulator from the dashboard | `backend/app/routes_general.py`, `external_api.py` |
-| Mail | Registration confirmation email | `backend/app/mail.py` |
-| C++ | Robot that lists accounts pending approval | `worker/src/robot.cpp`, `backend/app/routes_internal.py` |
-| Vue | Navigation, forms, directory, dashboard | `frontend/src/` |
+| `web` | nginx, Vue 3, Bootstrap 5 | Serves the interface and forwards the requests that start with `/api` to the backend |
+| `backend` | Python 3.13, Flask, gunicorn | Applies the business rules and exposes the REST application programming interface (API) |
+| `db` | MySQL 8.4 | Stores the data |
+| `worker` | C++17, libcurl | Calls the backend on a timer |
+| `mailpit` | Mailpit | Receives every email the application sends and keeps it locally, so nothing reaches a real address |
+| `mock-api` | Flask | Simulates the OpenRouter AI service, which avoids real keys and costs |
+| `seed` | Same image as the backend | Runs once at startup to create the admin and the test accounts |
 
 ## Requirements
 
-- Docker Desktop (Windows or macOS) or Docker Engine with the Compose v2 plugin (Linux). On Linux, run the commands with `sudo` if your user is not in the `docker` group.
-- About 4 GB of free disk space (base images and libraries are downloaded).
-- Python 3 on the machine, only for the `package.py` script. If you do not have it, see "Without Python" at the end.
-
-Images are built on each person's machine, so they should work on Intel/AMD and ARM (Apple Silicon) processors.
+Docker Engine with Compose v2 (or Docker Desktop) and about 4 GB of free disk space are enough to run the project. Python 3 is needed only for the script that builds the delivery ZIP. On Linux, the Docker commands must start with `sudo` when the user does not belong to the `docker` group.
 
 ## Quick start
 
+To start, copy the example settings and replace every `change-me` value with a secret of your own. Then build and start the services.
+
 ```bash
-# 1. Create the .env file (choose your case by editing CASE and replace every secret)
 cp .env.example .env
-
-# 2. Build and start everything
 docker compose up --build
-
-# 3. Open
-#    Application:  http://localhost:8080
-#    Emails:       http://localhost:8025
 ```
 
-The administrator account and the password of the test accounts are in `.env`. The emails of each case's test accounts are in `cases/<case>/README.md`.
+When the build ends, the application is available at `http://localhost:8080` and the captured emails at `http://localhost:8025`.
 
-Useful commands:
+## Test accounts
 
-| To | Command |
-|---|---|
-| See a service's logs | `docker compose logs -f backend` |
-| Rebuild after changing code | `docker compose up --build` |
-| Delete the data and start from scratch | `docker compose down -v` and then `docker compose up --build` |
-| Open a MySQL console | `docker compose exec db mysql -u root -p app` |
+The admin signs in with `admin@template.test` and the password stored in `ADMIN_PASSWORD`. The four test accounts share the password stored in `SEED_PASSWORD`. They are `dev1@marketplace.test` and `dev2@marketplace.test` for developers, and `company1@marketplace.test` and `company2@marketplace.test` for companies.
 
-## Structure
+## Useful commands
 
-```
-.env.example            Environment variables
-docker-compose.yml      Definition of every service
-ENTREGA.md              Sheet the group fills in before delivering (in Spanish)
-GUIA_AUDITOR.md         Instructions for the group that receives the ZIP (in Spanish)
-backend/app/
-  __init__.py           App factory and error handling
-  config.py             Configuration from environment variables
-  db.py                 Database access functions
-  security.py           login_required, role_required, current_user
-  routes_auth.py        Sign up, sign in, sign out
-  routes_general.py     Health, config, directory, profile, external API
-  routes_internal.py    Endpoints for the robot
-  mail.py               Email sending (to Mailpit)
-  external_api.py       HTTP client
-  seed.py               Seed data
-cases/<case>/           case.json (roles, test accounts, API), ENUNCIADO.md (in Spanish), README.md
-database/init/          SQL scripts run when the database is created
-frontend/               Vue 3 SPA + nginx configuration
-worker/                 C++ robot
-mock-api/               External API simulator
-scripts/                package.py
+Four commands cover most of the daily work.
+
+```bash
+docker compose logs -f backend                   # read the logs of one service
+docker compose up --build                        # rebuild after changing code
+docker compose down -v                           # delete all data to start clean
+docker compose exec db mysql -u root -p app      # open a MySQL console
 ```
 
-## How to extend the template
+## Documentation
 
-**New tables.** Create `database/init/02-modules.sql` (scripts run in alphabetical order). These scripts only run when the database volume is created, so after changing them run `docker compose down -v`.
-
-**New endpoints.** Create a file `backend/app/routes_<module>.py` with a `Blueprint` and register it in `__init__.py`.
-
-**Robots.** Add endpoints in `routes_internal.py` and call them from `run_cycle()` in `worker/src/robot.cpp`. If you need robots with different intervals (every minute and every second), duplicate the `worker` service in `docker-compose.yml` with another `WORKER_INTERVAL_SECONDS`.
-
-**Views.** Add components in `frontend/src/views/` and routes in `frontend/src/router/index.js`. To develop the frontend with hot reload, start the rest with Docker and run `npm install` and `npm run dev` inside `frontend/` (opens at `http://127.0.0.1:5173`).
-
-**Seed data.** Add in `backend/app/seed.py` the data the auditor group needs to test your modules: balances, agents, metrics, appointments.
-
-## Delivery (phase 1)
-
-1. Fill in `ENTREGA.md`.
-2. Check that the application starts from scratch: `docker compose down -v && docker compose up --build`.
-3. Build the ZIP: `python scripts/package.py --group group03`.
-4. Upload the ZIP (`deliveries/*.zip`) to the platform and register the SHA-256 fingerprint the script prints.
-
-The script excludes `.env`, `node_modules`, `dist`, `.git`, `.sandbox`, compiled files, PDFs, `TA.txt` and `CLAUDE.md`.
+The structure of the code is explained in `docs/ARCHITECTURE.md`, and the rules for changing it are in `docs/CONTRIBUTING.md`. The delivery sheet in `docs/ENTREGA.md` records the accounts, the status of each module and the known limits, while `docs/GUIA_AUDITOR.md` explains how the auditor group starts the application. These last two files are written in Spanish, as the course provides them.
 
 ## Common problems
 
-- **Port 8080, 8025 or 3306 is in use.** Change the left-hand port in the service's `ports` section of `docker-compose.yml`.
-- **I changed a `.sql` file and it is not reflected.** The scripts in `database/init` only run when the volume is created: `docker compose down -v`.
-- **The `seed` service fails.** Check `docker compose logs seed`.
-
-## Without Python
-
-You can use Docker's Python. On Linux, macOS or PowerShell, from the project root:
-
-```bash
-docker run --rm -v "${PWD}:/p" -w /p python:3.13-slim python scripts/package.py --group group03
-```
+If a port is already in use, change the number on the left of the matching `ports` entry in `docker-compose.yml`. A change in a `.sql` file appears only after `docker compose down -v`, because those scripts run when the database volume is first created. When the `seed` service fails, its log is available with `docker compose logs seed`.
