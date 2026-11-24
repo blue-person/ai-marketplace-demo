@@ -27,7 +27,7 @@ Each area of the API is a Flask blueprint registered in `backend/app/__init__.py
 
 The table `accounts` stores the name, email, password hash, role, status and balance of each user. The status can be `pending`, `active`, `rejected` or `suspended`. At registration it is set to `pending` when the role requires approval in `case.json` and to `active` otherwise. No code changes it afterwards, because the admin panel that will do so has not been built. The tables `transfers` and `ledger_entries` hold the credit transfers and the append-only list of every balance change. New tables go in numbered files in `database/init`, and those files run only when the database volume is created.
 
-Every write goes through `transaction()` in `db.py`, which commits at the end of the block and rolls back on any error. A function that can meet a deadlock is wrapped with `retry_on_deadlock`. The reasons are in decision 7 of `DECISIONS.md`.
+Every write goes through `transaction()` in `db.py`, which commits at the end of the block and rolls back on any error. A function that can meet a deadlock is wrapped with `retry_on_deadlock`. The reasons are in the decision "Transaction helper, retries and credit transfers" of `DECISIONS.md`.
 
 ## Frontend
 

@@ -54,7 +54,7 @@ docker compose exec db mysql -u root -p app      # open a MySQL console
 
 ## Documentation
 
-The structure of the code is explained in `docs/ARCHITECTURE.md`, the rules for changing it are in `docs/CONTRIBUTING.md` and the technical decisions with their sources are in `docs/DECISIONS.md`. The delivery sheet in `docs/ENTREGA.md` records the accounts, the status of each module and the known limits, while `docs/GUIA_AUDITOR.md` explains how the auditor group starts the application. These last two files are written in Spanish, as the course provides them.
+The structure of the code is explained in `docs/ARCHITECTURE.md`, the rules for changing it are in `docs/CONTRIBUTING.md`, the way tests are chosen and written is in `docs/TESTS.md` and the technical decisions with their sources are in `docs/DECISIONS.md`. The delivery sheet in `docs/ENTREGA.md` records the accounts, the status of each module and the known limits, while `docs/GUIA_AUDITOR.md` explains how the auditor group starts the application. These last two files are written in Spanish, as the course provides them.
 
 ## Common problems
 

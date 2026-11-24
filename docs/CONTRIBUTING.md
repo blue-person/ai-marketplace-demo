@@ -18,6 +18,10 @@ The Vue and JavaScript files follow the same rule and are formatted with Prettie
 
 Any change of balance should run in a single transaction that locks the rows involved, so that two simultaneous requests cannot spend the same money. The robot should reach the backend only through `/api/internal` and send the shared token on every call.
 
+The unit tests are in `backend/tests` and run from `backend` with `uv run python -m pytest tests`. How a test should be chosen and written is described in `docs/TESTS.md`, and the reasons are in the decision "Tests only for a named behaviour" of `DECISIONS.md`, and the concurrency script `scripts/concurrency_check.py` checks the parts that need MySQL.
+
+A decision is added to `docs/DECISIONS.md` when a choice was made between options and someone could ask later why. It takes a title with the date and one paragraph, and the assistant can write it when asked to register the decision.
+
 ## Before delivering
 
 The project should be started from scratch with `docker compose down -v` followed by `docker compose up --build`, and the main flows should be checked on that clean start. The file `docs/ENTREGA.md` has to describe the real state of each module. The ZIP is built with `uv run scripts/package.py --group NAME`, which prints the fingerprint to register on the platform.
