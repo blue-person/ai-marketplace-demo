@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { api } from "@/api";
+import AdminAgents from "@/views/AdminAgents.vue";
 
 const registrations = ref([]);
 const accounts = ref([]);
@@ -24,6 +25,7 @@ const category_labels = {
 	registration: "Registration",
 	account: "Account",
 	credit: "Credit",
+	agent: "Agent",
 };
 
 // The backend sends the list, so the page only shows it again after each action.
@@ -122,9 +124,14 @@ onMounted(load);
 				</button>
 			</li>
 			<li class="nav-item">
+				<button class="nav-link" :class="{ active: tab === 'agents' }" @click="tab = 'agents'">Agents</button>
+			</li>
+			<li class="nav-item">
 				<button class="nav-link" :class="{ active: tab === 'audit' }" @click="open_audit">Audit log</button>
 			</li>
 		</ul>
+
+		<AdminAgents v-if="tab === 'agents'" />
 
 		<div v-if="tab === 'audit'">
 			<h1 class="h3 mb-3">Audit log</h1>

@@ -35,6 +35,9 @@ async function sign_out() {
 				<li class="nav-item" v-if="session.user">
 					<RouterLink class="nav-link" to="/credit">Credit</RouterLink>
 				</li>
+				<li class="nav-item" v-if="session.user">
+					<RouterLink class="nav-link" to="/agents">Agents</RouterLink>
+				</li>
 				<li class="nav-item" v-if="session.user && session.user.role === 'admin'">
 					<RouterLink class="nav-link" to="/admin">Admin</RouterLink>
 				</li>
