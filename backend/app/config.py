@@ -22,8 +22,8 @@ def db_params() -> dict:
 	return {
 		"host": os.environ.get("DB_HOST", "db"),
 		"port": int(os.environ.get("DB_PORT", "3306")),
-		"user": os.environ.get("DB_USER", "root"),
-		"password": os.environ.get("MYSQL_ROOT_PASSWORD", "root"),
+		"user": os.environ["DB_USER"],
+		"password": os.environ["DB_PASSWORD"],
 		"database": os.environ.get("MYSQL_DATABASE", "app"),
 		"connection_timeout": 5,
 	}
