@@ -1,0 +1,6 @@
+# Applies to every Python file in the repository.
+line-length = 120
+indent-width = 4
+
+[format]
+indent-style = "tab"

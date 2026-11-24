@@ -2,6 +2,7 @@
 .sandbox
 .env
 deliveries
+**/.venv
 **/node_modules
 **/dist
 **/__pycache__

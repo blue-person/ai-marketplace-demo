@@ -1,0 +1,9 @@
+[project]
+name = "mock-api"
+version = "0.1.0"
+description = "Simulated OpenRouter AI service for development and audits"
+requires-python = ">=3.13"
+dependencies = [
+    "flask==3.1.3",
+    "gunicorn==27.0.1",
+]
