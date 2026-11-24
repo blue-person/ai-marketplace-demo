@@ -14,6 +14,8 @@ Names, comments, routes, tables and interface text are written in English. Varia
 
 Python files are indented with tabs and formatted with Ruff, whose settings are in `ruff.toml`. Running `ruff format` before each commit keeps the style uniform, and the tool is installed once with `uv tool install ruff`. Dependencies are added with `uv add` inside `backend` or `mock-api`, and the generated `pyproject.toml` and `uv.lock` are committed together, so the files are never edited by hand.
 
+The Vue and JavaScript files follow the same rule and are formatted with Prettier, whose settings are in `frontend/.prettierrc.json`. Running `npm run format` inside `frontend` before each commit applies the style, and `npm run format:check` only verifies it.
+
 Any change of balance should run in a single transaction that locks the rows involved, so that two simultaneous requests cannot spend the same money. The robot should reach the backend only through `/api/internal` and send the shared token on every call.
 
 ## Before delivering
