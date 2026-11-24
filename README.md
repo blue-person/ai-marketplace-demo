@@ -22,7 +22,9 @@ The application runs as seven services under Docker Compose, which are described
 
 ## Requirements
 
-Docker Engine with Compose v2 (or Docker Desktop) and about 4 GB of free disk space are enough to run the project. Python 3 is needed only for the script that builds the delivery ZIP. On Linux, the Docker commands must start with `sudo` when the user does not belong to the `docker` group.
+Docker Engine with Compose v2 (or Docker Desktop) and about 4 GB of free disk space are enough to run the project. On Linux, the Docker commands must start with `sudo` when the user does not belong to the `docker` group.
+
+The Python parts are managed with [uv](https://docs.astral.sh/uv/). The `backend` and `mock-api` folders each have their own `pyproject.toml` and `uv.lock`, and the Docker images install exactly what the lock files list. Working on the code outside Docker, or building the delivery ZIP with `uv run scripts/package.py --group NAME`, needs only `uv`, because it downloads the right Python version by itself.
 
 ## Quick start
 

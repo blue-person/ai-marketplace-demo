@@ -12,8 +12,10 @@ Every route that is not public should check the role and the owner of the data o
 
 Names, comments, routes, tables and interface text are written in English. Variables and functions use `snake_case`, constants use `SNAKE_CASE` and classes use `PascalCase`, which keeps the code consistent as the course rubric asks. Each area of the API lives in its own `routes_<area>.py` blueprint, and the business rules belong there and not in the views. A function whose purpose is not obvious carries a short comment that explains why it exists.
 
+Python files are indented with tabs and formatted with Ruff, whose settings are in `ruff.toml`. Running `ruff format` before each commit keeps the style uniform, and the tool is installed once with `uv tool install ruff`. Dependencies are added with `uv add` inside `backend` or `mock-api`, and the generated `pyproject.toml` and `uv.lock` are committed together, so the files are never edited by hand.
+
 Any change of balance should run in a single transaction that locks the rows involved, so that two simultaneous requests cannot spend the same money. The robot should reach the backend only through `/api/internal` and send the shared token on every call.
 
 ## Before delivering
 
-The project should be started from scratch with `docker compose down -v` followed by `docker compose up --build`, and the main flows should be checked on that clean start. The file `docs/ENTREGA.md` has to describe the real state of each module. The ZIP is built with `python scripts/package.py --group NAME`, which prints the fingerprint to register on the platform.
+The project should be started from scratch with `docker compose down -v` followed by `docker compose up --build`, and the main flows should be checked on that clean start. The file `docs/ENTREGA.md` has to describe the real state of each module. The ZIP is built with `uv run scripts/package.py --group NAME`, which prints the fingerprint to register on the platform.
