@@ -1,8 +1,8 @@
-# Project template - Software Security
-# Usage:  docker compose up --build
-# Delete data and start from scratch:  docker compose down -v
+# AI Agent Marketplace
+# Start everything with docker compose up --build
+# Delete all data and start clean with docker compose down -v
 
-name: seguridad-software
+name: ai-marketplace-demo
 
 services:
   db:
@@ -13,8 +13,8 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - db-datos:/var/lib/mysql
-      # The .sql files in this folder run ONLY when the volume is first created.
+      - db-data:/var/lib/mysql
+      # The .sql files in this folder run only when the volume is first created.
       - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u root --silent"]
@@ -25,19 +25,19 @@ services:
     restart: unless-stopped
 
   mailpit:
-    # Test mail server: captures every email the application sends.
+    # Test mail server that keeps every email the application sends.
     image: axllent/mailpit:v1.31.1
     ports:
       - "8025:8025"
     restart: unless-stopped
 
   mock-api:
-    # Simulator of the case's external API.
+    # Simulated OpenRouter AI service, so no real key is needed.
     build: ./mock-api
     restart: unless-stopped
 
   seed:
-    # Runs once: creates the administrator and the test accounts.
+    # Runs once to create the admin and the test accounts.
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
 
   worker:
-    # Periodic C++ robot.
+    # C++ robot that calls the backend on a timer.
     build: ./worker
     environment:
       BACKEND_URL: http://backend:8000
@@ -88,7 +88,7 @@ services:
     restart: unless-stopped
 
   web:
-    # Serves the SPA (Vue) and proxies /api to the backend.
+    # Serves the Vue interface and forwards /api to the backend.
     build: ./frontend
     ports:
       - "8080:80"
@@ -98,4 +98,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  db-datos:
+  db-data:
