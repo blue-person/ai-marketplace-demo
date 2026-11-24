@@ -1,16 +1,12 @@
--- Profile, referrals, review data and API keys of the registration module.
+-- Profile, referrals and API keys of the registration module.
 
 ALTER TABLE accounts
     ADD COLUMN organization      VARCHAR(100)    NULL,
     ADD COLUMN country           CHAR(2)         NULL,
     ADD COLUMN referral_code     VARCHAR(32)     NULL,
     ADD COLUMN referred_by       BIGINT UNSIGNED NULL,
-    ADD COLUMN reviewed_at       TIMESTAMP       NULL,
-    ADD COLUMN reviewed_by       BIGINT UNSIGNED NULL,
-    ADD COLUMN rejection_reason  VARCHAR(30)     NULL,
     ADD CONSTRAINT uq_accounts_referral_code UNIQUE (referral_code),
-    ADD CONSTRAINT fk_accounts_referred_by FOREIGN KEY (referred_by) REFERENCES accounts (id),
-    ADD CONSTRAINT fk_accounts_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES accounts (id);
+    ADD CONSTRAINT fk_accounts_referred_by FOREIGN KEY (referred_by) REFERENCES accounts (id);
 
 -- One row per account, so the database itself allows only one valid key at a time
 CREATE TABLE api_keys (

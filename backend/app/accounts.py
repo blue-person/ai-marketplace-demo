@@ -1,9 +1,11 @@
 # Import modules
+from . import audit
 from .db import query, retry_on_deadlock, transaction
 from .rbac import MANAGE_ACCOUNT_STATUS, AccountTarget, Actor, can
 
 # Constants
 STATUS_ACTIONS = {"active": "suspend", "suspended": "reactivate"}
+STATUS_EVENTS = {"suspended": "account_suspended", "active": "account_reactivated"}
 
 
 # Raised inside the transaction when the change would leave no active administrator
@@ -56,9 +58,12 @@ def change_status(account_id: int, admin_id: int, from_status: str, to_status: s
 		)
 		if not changed:
 			return False
-		tx.insert(
-			"INSERT INTO account_status_changes (account_id, changed_by, from_status, to_status) "
-			"VALUES (%s, %s, %s, %s)",
-			(account_id, admin_id, from_status, to_status),
+		audit.record(
+			tx,
+			STATUS_EVENTS[to_status],
+			"success",
+			admin_id,
+			account_id,
+			details={"from": from_status, "to": to_status},
 		)
 		return True

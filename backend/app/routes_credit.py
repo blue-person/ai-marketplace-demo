@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, abort, jsonify, request
 
 # Import modules
+from . import audit
 from .db import query, retry_on_deadlock, transaction
 from .rbac import RECEIVE_CREDIT, SEND_CREDIT, can, require
 from .security import current_actor, current_user, find_target_by_email, login_required
@@ -70,6 +71,14 @@ def _transfer(sender_id: int, recipient_id: int, amount: Decimal) -> int:
 		tx.insert(
 			"INSERT INTO ledger_entries (account_id, amount, entry_type, transfer_id) VALUES (%s, %s, 'transfer_in', %s)",
 			(recipient_id, amount, transfer_id),
+		)
+		audit.record(
+			tx,
+			"credit_transfer",
+			"success",
+			sender_id,
+			recipient_id,
+			details={"amount": amount, "transfer_id": transfer_id},
 		)
 		return transfer_id
 

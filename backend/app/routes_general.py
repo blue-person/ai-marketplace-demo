@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
-from . import external_api
+from . import audit, external_api
 from .countries import country_choices
 from .db import query, retry_on_deadlock, transaction
 from .rbac import MANAGE_API_KEY, RENAME_ACCOUNT, VIEW_ACCOUNT
@@ -80,11 +80,15 @@ def get_account(account_id):
 	return jsonify(account=account)
 
 
-# Change the name in one transaction and repeat it after a deadlock
+# Change the name in one transaction with the old name locked and repeat it after a deadlock
 @retry_on_deadlock
 def _rename_account(account_id: int, name: str) -> None:
 	with transaction() as tx:
+		old = tx.query("SELECT name FROM accounts WHERE id = %s FOR UPDATE", (account_id,), one=True)
 		tx.execute("UPDATE accounts SET name = %s WHERE id = %s", (name, account_id))
+		audit.record(
+			tx, "account_renamed", "success", account_id, account_id, details={"from": old["name"], "to": name}
+		)
 
 
 # Update the name of the signed in account and nothing else

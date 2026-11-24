@@ -21,13 +21,15 @@ MAX_EMAIL_LENGTH = 254
 
 # Insert the account in one transaction and repeat it after a deadlock
 @retry_on_deadlock
-def _create_account(values: tuple) -> int:
+def _create_account(values: tuple, details: dict) -> int:
 	with transaction() as tx:
-		return tx.insert(
+		account_id = tx.insert(
 			"INSERT INTO accounts (name, email, password_hash, role, status, organization, country, referred_by) "
 			"VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
 			values,
 		)
+		audit.record(tx, "user_created", "success", None, account_id, details=details)
+		return account_id
 
 
 # Replace the stored hash in one transaction and repeat it after a deadlock
@@ -111,7 +113,10 @@ def register():
 
 	# The unique key on the email decides which of two simultaneous sign ups wins
 	try:
-		_create_account((name, email, hash_password(password), role, status, organization, country, referrer_id))
+		_create_account(
+			(name, email, hash_password(password), role, status, organization, country, referrer_id),
+			{"role": role, "status": status, "referred_by": referrer_id},
+		)
 	except DuplicateError:
 		return jsonify(error="The email is already registered."), 409
 

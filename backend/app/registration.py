@@ -3,7 +3,7 @@ import secrets
 from decimal import Decimal
 
 # Import modules
-from . import mail
+from . import audit, mail
 from .api_keys import NewApiKey, new_api_key
 from .countries import is_valid_country
 from .db import query, retry_on_deadlock, transaction
@@ -82,7 +82,7 @@ def _store_api_key(tx, account_id: int, api_key: NewApiKey) -> None:
 
 
 # Pay the bonus to an active referrer that has not reached the limit
-def _pay_referral_bonus(tx, referrer: dict, referred_id: int) -> None:
+def _pay_referral_bonus(tx, referrer: dict, referred_id: int, reviewer_id: int | None) -> None:
 	if referrer["status"] != "active":
 		return
 
@@ -100,6 +100,14 @@ def _pay_referral_bonus(tx, referrer: dict, referred_id: int) -> None:
 		"VALUES (%s, %s, 'referral_bonus', %s)",
 		(referrer["id"], REFERRAL_BONUS, referred_id),
 	)
+	audit.record(
+		tx,
+		"referral_bonus_paid",
+		"success",
+		reviewer_id,
+		referrer["id"],
+		details={"amount": REFERRAL_BONUS, "referred_id": referred_id},
+	)
 
 
 # A repeated code breaks the unique key and the approval is rolled back
@@ -116,16 +124,16 @@ def _approve(account_id: int, referrer_id: int | None, reviewer_id: int | None):
 
 		# The condition on the status makes a second approval change nothing
 		approved = tx.execute(
-			"UPDATE accounts SET status = 'active', reviewed_at = NOW(), reviewed_by = %s, referral_code = %s "
-			"WHERE id = %s AND status = 'pending'",
-			(reviewer_id, _new_referral_code(), account_id),
+			"UPDATE accounts SET status = 'active', referral_code = %s WHERE id = %s AND status = 'pending'",
+			(_new_referral_code(), account_id),
 		)
 		if not approved:
 			return None
+		audit.record(tx, "registration_approved", "success", reviewer_id, account_id)
 		api_key = new_api_key()
 		_store_api_key(tx, account_id, api_key)
 		if referrer_id is not None:
-			_pay_referral_bonus(tx, locked[referrer_id], account_id)
+			_pay_referral_bonus(tx, locked[referrer_id], account_id, reviewer_id)
 		return locked[account_id], api_key
 
 
@@ -155,12 +163,12 @@ def approve_account(account_id: int, reviewer_id: int | None) -> bool:
 def _reject(account_id: int, reviewer_id: int, reason: str):
 	with transaction() as tx:
 		rejected = tx.execute(
-			"UPDATE accounts SET status = 'rejected', reviewed_at = NOW(), reviewed_by = %s, rejection_reason = %s "
-			"WHERE id = %s AND status = 'pending'",
-			(reviewer_id, reason, account_id),
+			"UPDATE accounts SET status = 'rejected' WHERE id = %s AND status = 'pending'",
+			(account_id,),
 		)
 		if not rejected:
 			return None
+		audit.record(tx, "registration_rejected", "success", reviewer_id, account_id, details={"reason": reason})
 		return tx.query("SELECT name, email FROM accounts WHERE id = %s", (account_id,), one=True)
 
 
@@ -186,4 +194,5 @@ def regenerate_api_key(account_id: int) -> NewApiKey | None:
 			return None
 		api_key = new_api_key()
 		_store_api_key(tx, account_id, api_key)
+		audit.record(tx, "api_key_renewed", "success", account_id, account_id, details={"prefix": api_key.prefix})
 		return api_key
