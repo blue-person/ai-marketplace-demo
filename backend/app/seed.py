@@ -1,21 +1,12 @@
-"""Seed data. Runs once on every startup (the "seed" service).
-
-Creates the administrator account (ADMIN_EMAIL / ADMIN_PASSWORD) and the test
-accounts from cases/<case>/case.json, all with SEED_PASSWORD. If an account
-already exists it is left untouched.
-
-Add the seed data of your own modules at the end of main()
-(initial balances, catalog agents, sample metrics...).
-"""
-
-import hashlib
+# Import libraries
 import os
 import sys
 import time
-
 import mysql.connector
 
+# Import modules
 from .config import db_params, load_case
+from .passwords import hash_password
 
 
 def connect(attempts: int = 30):
@@ -32,21 +23,26 @@ def create_account(cursor, name: str, email: str, password: str, role: str) -> b
 	cursor.execute("SELECT id FROM accounts WHERE email = %s", (email.lower(),))
 	if cursor.fetchone():
 		return False
+
 	cursor.execute(
 		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, 'active')",
-		(name, email.lower(), hashlib.md5(password.encode()).hexdigest(), role),
+		(name, email.lower(), hash_password(password), role),
 	)
 	return True
 
 
 def main() -> int:
 	case = load_case()
+
+	# Password shared by the test accounts and set with SEED_PASSWORD
 	seed_password = os.environ.get("SEED_PASSWORD", "test1234")
 
 	conn = connect()
 	cursor = conn.cursor()
 	try:
 		created = 0
+
+		# Create the administrator account from ADMIN_EMAIL and ADMIN_PASSWORD
 		created += create_account(
 			cursor,
 			"Administrator",
@@ -54,10 +50,12 @@ def main() -> int:
 			os.environ.get("ADMIN_PASSWORD", "admin123"),
 			"admin",
 		)
+
+		# Create the test accounts listed in cases/<case>/case.json
 		for account in case.get("test_accounts", []):
 			created += create_account(cursor, account["name"], account["email"], seed_password, account["role"])
 
-		# TODO (each group): seed data for your modules.
+		# The seed data of the modules goes here
 
 		conn.commit()
 		print(f"[seed] Case '{case['key']}': {created} new account(s).", flush=True)

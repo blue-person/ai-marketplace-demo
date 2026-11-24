@@ -1,20 +1,19 @@
-"""Sign up, sign in and sign out."""
-
-import hashlib
-
+# Import libraries
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
+# Import modules
 from . import mail
 from .db import commit, execute, query
+from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
 from .security import current_user, login_required
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
+# Constants
+LOGIN_ERROR = "Incorrect email or password."
 
-def hash_password(password: str) -> str:
-	return hashlib.md5(password.encode()).hexdigest()
 
-
+# Read the JSON body or fall back to the form fields
 def _data() -> dict:
 	return request.get_json(silent=True) or request.form.to_dict()
 
@@ -29,13 +28,15 @@ def register():
 
 	if not name or not email or "@" not in email:
 		abort(400, description="Name and email are required.")
-	if len(password) < 6:
-		abort(400, description="The password must be at least 6 characters long.")
+	if len(password) < MIN_PASSWORD_LENGTH:
+		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
 
 	if query("SELECT id FROM accounts WHERE email = %s", (email,), one=True):
 		return jsonify(error="The email is already registered."), 409
 
 	roles = current_app.config["CASE"]["roles"]
+
+	# The account needs approval only when its role requires it in case.json
 	status = "pending" if roles.get(role, {}).get("requires_approval") else "active"
 	execute(
 		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, %s)",
@@ -48,6 +49,8 @@ def register():
 		if status == "pending"
 		else "Your account was created and you can now sign in."
 	)
+
+	# The account is kept even when the email cannot be sent
 	mail.send(email, "Registration received", f"Hello {name}. {text}")
 	return jsonify(message=text), 201
 
@@ -58,23 +61,36 @@ def login():
 	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
 
-	# The email and the hash travel as parameters, so they are never read as part of the SQL text.
+	# Find the account by email and check the password in Python against its stored hash
 	account = query(
-		"SELECT * FROM accounts WHERE email = %s AND password_hash = %s",
-		(email, hash_password(password)),
+		"SELECT id, name, email, role, status, password_hash FROM accounts WHERE email = %s",
+		(email,),
 		one=True,
 	)
-	if not account:
-		return jsonify(error="Incorrect email or password."), 401
-	if account["status"] != "active":
-		return jsonify(error=f"The account status is '{account['status']}'."), 403
+
+	# Run the check even when the account does not exist to keep the time similar
+	stored_hash = account["password_hash"] if account else None
+	password_matches = verify_password(stored_hash, password)
+
+	# Every failed login gets the same answer
+	if not account or not password_matches or account["status"] != "active":
+		return jsonify(error=LOGIN_ERROR), 401
+
+	# Replace the stored hash when it was made with older settings
+	if needs_rehash(stored_hash):
+		execute("UPDATE accounts SET password_hash = %s WHERE id = %s", (hash_password(password), account["id"]))
+		commit()
 
 	session.permanent = True
 	session["account_id"] = account["id"]
 	session["name"] = account["name"]
 	session["email"] = account["email"]
 	session["role"] = account["role"]
-	return jsonify(user=account)
+
+	# Send only the fields the interface needs
+	return jsonify(
+		user={"id": account["id"], "name": account["name"], "email": account["email"], "role": account["role"]}
+	)
 
 
 @bp.route("/logout", methods=["GET", "POST"])
