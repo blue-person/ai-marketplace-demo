@@ -5,8 +5,9 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 from . import external_api
 from .countries import country_choices
 from .db import query, retry_on_deadlock, transaction
+from .rbac import MANAGE_API_KEY, RENAME_ACCOUNT, VIEW_ACCOUNT
 from .registration import MAX_NAME_LENGTH, regenerate_api_key
-from .security import current_user, login_required
+from .security import authorized_target, current_actor, login_required
 
 # Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
@@ -46,9 +47,9 @@ def public_config():
 def directory():
 	term = request.args.get("q", "")
 
-	# Send the whole pattern as one parameter
+	# Send the whole pattern as one parameter and leave the robots out of the list
 	results = query(
-		"SELECT id, name, role FROM accounts WHERE status = 'active' AND name LIKE %s ORDER BY name",
+		"SELECT id, name, role FROM accounts WHERE status = 'active' AND role <> 'bot' AND name LIKE %s ORDER BY name",
 		(f"%{term}%",),
 	)
 	return jsonify(results=results)
@@ -69,16 +70,13 @@ def _owner_account(account_id: int) -> dict:
 @bp.get("/accounts/<int:account_id>")
 @login_required
 def get_account(account_id):
-	user = current_user()
-	if account_id == user["id"]:
+	actor = current_actor()
+	authorized_target(actor, VIEW_ACCOUNT, account_id)
+	if account_id == actor.id:
 		return jsonify(account=_owner_account(account_id))
-	if user["role"] != "admin":
-		abort(403)
 
 	# An administrator sees the public columns of other accounts and never their codes
 	account = query(f"SELECT {PUBLIC_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
-	if not account:
-		abort(404)
 	return jsonify(account=account)
 
 
@@ -93,16 +91,12 @@ def _rename_account(account_id: int, name: str) -> None:
 @bp.put("/accounts/<int:account_id>")
 @login_required
 def update_account(account_id):
-	if account_id != current_user()["id"]:
-		abort(403)
+	authorized_target(current_actor(), RENAME_ACCOUNT, account_id)
 	data = request.get_json(silent=True) or {}
 	name = str(data.get("name", "")).strip()
 	if not name or len(name) > MAX_NAME_LENGTH:
 		abort(400, description=f"The name must have between 1 and {MAX_NAME_LENGTH} characters.")
 	_rename_account(account_id, name)
-
-	# Keep the name stored in the session in sync after a rename
-	session["name"] = name
 	return jsonify(account=_owner_account(account_id))
 
 
@@ -110,8 +104,7 @@ def update_account(account_id):
 @bp.post("/accounts/<int:account_id>/api-key")
 @login_required
 def create_api_key(account_id):
-	if account_id != current_user()["id"]:
-		abort(403)
+	authorized_target(current_actor(), MANAGE_API_KEY, account_id)
 	api_key = regenerate_api_key(account_id)
 	if api_key is None:
 		abort(403, description="Only active accounts have an API key.")

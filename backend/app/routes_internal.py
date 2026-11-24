@@ -1,26 +1,32 @@
 # Import libraries
-import hmac
-from flask import Blueprint, Response, abort, current_app, request
+from flask import Blueprint, jsonify
 
 # Import modules
-from .registration import approve_complete_profiles
+from .rbac import APPROVE_REGISTRATION, LIST_REGISTRATIONS, require
+from .registration import approve_account, pending_profiles
+from .security import api_key_actor, api_key_required, authorized_target
 
-# Blueprint of the internal worker routes
+# Blueprint of the routes used by the robots
 bp = Blueprint("internal", __name__, url_prefix="/api/internal")
 
-
-# Every request needs the worker token in the X-Internal-Token header
-@bp.before_request
-def verify_token():
-	expected = current_app.config["WORKER_TOKEN"]
-	sent = request.headers.get("X-Internal-Token", "")
-
-	# The comparison takes the same time wherever the texts differ
-	if not expected or not hmac.compare_digest(sent.encode("utf-8"), expected.encode("utf-8")):
-		abort(401)
+# Constants
+NOT_PENDING = "The registration is not pending."
 
 
-# Approve the pending accounts with a complete profile and return how many were approved
-@bp.post("/auto-approve")
-def auto_approve():
-	return Response(f"{approve_complete_profiles()}\n", mimetype="text/plain")
+# List the pending registrations with only the fields the robot needs
+@bp.get("/registrations")
+@api_key_required
+def list_registrations():
+	require(api_key_actor(), LIST_REGISTRATIONS)
+	return jsonify(registrations=pending_profiles())
+
+
+# Approve one pending registration in the name of the robot
+@bp.post("/registrations/<int:account_id>/approve")
+@api_key_required
+def approve_registration(account_id):
+	actor = api_key_actor()
+	authorized_target(actor, APPROVE_REGISTRATION, account_id)
+	if not approve_account(account_id, actor.id):
+		return jsonify(error=NOT_PENDING), 409
+	return jsonify(message="The account was approved.")

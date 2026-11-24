@@ -7,6 +7,7 @@ from .countries import is_valid_country
 from .db import DuplicateError, query, retry_on_deadlock, transaction
 from .email_address import InvalidEmailError, normalize_email
 from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
+from .rbac import SIGN_IN, Actor, can
 from .registration import MAX_NAME_LENGTH, find_referrer_id, is_valid_organization
 from .security import current_user, login_required
 
@@ -62,6 +63,11 @@ def _read_referrer_id(data: dict) -> int | None:
 	if referrer_id is None:
 		abort(400, description="The referral code is not valid.")
 	return referrer_id
+
+
+# True when the account is active and its role may sign in
+def _may_sign_in(account: dict) -> bool:
+	return can(Actor(account["id"], account["role"], account["status"]), SIGN_IN)
 
 
 # Create an account and send a registration email
@@ -127,19 +133,16 @@ def login():
 	password_matches = verify_password(stored_hash, password)
 
 	# Every failed login gets the same answer
-	if not account or not password_matches or account["status"] != "active":
+	if not account or not password_matches or not _may_sign_in(account):
 		return jsonify(error=LOGIN_ERROR), 401
 
 	# Replace the stored hash when it was made with older settings
 	if needs_rehash(stored_hash):
 		_replace_hash(account["id"], hash_password(password))
 
-	# Store the signed in user in the session cookie
+	# Store only the id because the role and the status are read again on each request
 	session.permanent = True
 	session["account_id"] = account["id"]
-	session["name"] = account["name"]
-	session["email"] = account["email"]
-	session["role"] = account["role"]
 
 	# Send only the fields the interface needs
 	return jsonify(

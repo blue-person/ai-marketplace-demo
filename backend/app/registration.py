@@ -54,6 +54,11 @@ def pending_registrations() -> list[dict]:
 	return rows
 
 
+# List the pending accounts with only the profile fields the robot reads
+def pending_profiles() -> list[dict]:
+	return query("SELECT id, organization, country FROM accounts WHERE status = 'pending' ORDER BY id")
+
+
 # Lock the accounts in the order of their ids so two transactions cannot deadlock
 def _lock_accounts(tx, account_ids: list[int]) -> dict:
 	ids = sorted(set(account_ids))
@@ -182,12 +187,3 @@ def regenerate_api_key(account_id: int) -> NewApiKey | None:
 		api_key = new_api_key()
 		_store_api_key(tx, account_id, api_key)
 		return api_key
-
-
-# Approve every pending account with a complete profile and return how many were approved
-def approve_complete_profiles() -> int:
-	approved = 0
-	for registration in pending_registrations():
-		if registration["profile_complete"] and approve_account(registration["id"], None):
-			approved += 1
-	return approved

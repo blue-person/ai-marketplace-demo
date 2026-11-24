@@ -4,7 +4,8 @@ from flask import Blueprint, abort, jsonify, request
 
 # Import modules
 from .db import query, retry_on_deadlock, transaction
-from .security import current_user, login_required
+from .rbac import RECEIVE_CREDIT, SEND_CREDIT, can, require
+from .security import current_actor, current_user, find_target_by_email, login_required
 
 # Blueprint of the credit routes
 bp = Blueprint("credit", __name__, url_prefix="/api/credit")
@@ -94,20 +95,24 @@ def credit():
 @bp.post("/transfers")
 @login_required
 def create_transfer():
+	actor = current_actor()
+	require(actor, SEND_CREDIT)
 	data = request.get_json(silent=True) or {}
 	recipient_email = str(data.get("recipient_email", "")).strip().lower()
 	amount = _parse_amount(data.get("amount"))
-	sender_id = current_user()["id"]
+	sender_id = actor.id
 
-	# The recipient id never changes, so it can be read before the transaction
-	recipient = query("SELECT id FROM accounts WHERE email = %s", (recipient_email,), one=True)
-	if not recipient:
+	# The recipient id and role never change, so they can be read before the transaction
+	recipient = find_target_by_email(recipient_email)
+
+	# An account that cannot receive credit looks like an account that does not exist
+	if not recipient or not can(actor, RECEIVE_CREDIT, recipient):
 		abort(404, description="The recipient was not found.")
-	if recipient["id"] == sender_id:
+	if recipient.id == sender_id:
 		abort(400, description="You cannot transfer credit to yourself.")
 
 	try:
-		transfer_id = _transfer(sender_id, recipient["id"], amount)
+		transfer_id = _transfer(sender_id, recipient.id, amount)
 	except NotEnoughBalanceError:
 		return jsonify(error="The balance is not enough."), 402
 	balance = query("SELECT balance FROM accounts WHERE id = %s", (sender_id,), one=True)["balance"]

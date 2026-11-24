@@ -21,7 +21,11 @@ def hash_api_key(key: str) -> str:
 	return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+# Describe a key that already exists with its hash and the prefix that identifies it
+def describe_api_key(key: str) -> NewApiKey:
+	return NewApiKey(key, hash_api_key(key), key[:DISPLAY_PREFIX_LENGTH])
+
+
 # Create a random key and return it with its hash and the prefix that identifies it
 def new_api_key() -> NewApiKey:
-	key = KEY_PREFIX + secrets.token_urlsafe(KEY_BYTES)
-	return NewApiKey(key, hash_api_key(key), key[:DISPLAY_PREFIX_LENGTH])
+	return describe_api_key(KEY_PREFIX + secrets.token_urlsafe(KEY_BYTES))

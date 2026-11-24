@@ -3,8 +3,12 @@
   "roles": {
     "developer": {"label": "Developer", "public_registration": true, "requires_approval": true},
     "company": {"label": "Company", "public_registration": true, "requires_approval": true},
-    "admin": {"label": "Administrator", "public_registration": false, "requires_approval": false}
+    "admin": {"label": "Administrator", "public_registration": false, "requires_approval": false},
+    "bot": {"label": "Robot", "public_registration": false, "requires_approval": false}
   },
+  "service_accounts": [
+    {"name": "Approval Robot", "email": "approval.robot@marketplace.test", "role": "bot", "api_key_env": "WORKER_API_KEY"}
+  ],
   "test_accounts": [
     {"name": "Developer One", "email": "dev1@marketplace.test", "role": "developer", "organization": "Dev Studio One", "country": "CO"},
     {"name": "Developer Two", "email": "dev2@marketplace.test", "role": "developer", "organization": "Dev Studio Two", "country": "MX"},

@@ -6,12 +6,13 @@ import time
 import mysql.connector
 
 # Import modules
-from .api_keys import new_api_key
+from .api_keys import describe_api_key, new_api_key
 from .config import db_params, load_case
 from .passwords import hash_password
 
 # Constants
 SEED_CREDIT = "100.00"
+MIN_SERVICE_KEY_LENGTH = 32
 
 
 # Retry the connection until the database accepts it
@@ -52,6 +53,24 @@ def add_access(cursor, account_id: int, email: str) -> None:
 	print(f"[seed] API key of {email}: {api_key.key}", flush=True)
 
 
+# Read the key of a robot from the environment and refuse a missing or short one
+def read_service_key(variable: str) -> str:
+	key = os.environ.get(variable, "")
+	if len(key) < MIN_SERVICE_KEY_LENGTH:
+		raise SystemExit(f"[seed] {variable} must have at least {MIN_SERVICE_KEY_LENGTH} characters.")
+	return key
+
+
+# Store the hash of the key of a robot and replace the previous one so a changed key applies at once
+def save_service_key(cursor, account_id: int, key: str) -> None:
+	api_key = describe_api_key(key)
+	cursor.execute(
+		"INSERT INTO api_keys (account_id, key_hash, key_prefix) VALUES (%s, %s, %s) AS new "
+		"ON DUPLICATE KEY UPDATE key_hash = new.key_hash, key_prefix = new.key_prefix, created_at = CURRENT_TIMESTAMP",
+		(account_id, api_key.key_hash, api_key.prefix),
+	)
+
+
 # Insert an account unless its email is already registered
 def create_account(cursor, account: dict, password: str, status: str) -> bool:
 	email = account["email"].lower()
@@ -79,8 +98,8 @@ def create_account(cursor, account: dict, password: str, status: str) -> bool:
 	)
 	account_id = cursor.lastrowid
 
-	# Only active accounts that are not administrators receive credit and a key
-	if status == "active" and account["role"] != "admin":
+	# Only active accounts that are not administrators or robots receive credit and a key
+	if status == "active" and account["role"] not in ("admin", "bot"):
 		add_seed_credit(cursor, account_id)
 		add_access(cursor, account_id, email)
 	return True
@@ -114,6 +133,12 @@ def main() -> int:
 		# Create the pending registrations so the approval flows can be tried
 		for account in case.get("pending_accounts", []):
 			created += create_account(cursor, account, seed_password, "pending")
+
+		# Create the robots with a password nobody knows because they sign in with a key
+		for account in case.get("service_accounts", []):
+			key = read_service_key(account["api_key_env"])
+			created += create_account(cursor, account, secrets.token_urlsafe(32), "active")
+			save_service_key(cursor, find_account_id(cursor, account["email"]), key)
 
 		# The seed data of the modules goes here
 

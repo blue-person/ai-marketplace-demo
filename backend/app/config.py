@@ -44,7 +44,6 @@ def load_config() -> dict:
 		"PERMANENT_SESSION_LIFETIME": timedelta(days=30),
 		"CASE": case,
 		"DB": db_params(),
-		"WORKER_TOKEN": os.environ.get("WORKER_TOKEN", "worker-token"),
 		"SMTP_HOST": os.environ.get("SMTP_HOST", "mailpit"),
 		"SMTP_PORT": int(os.environ.get("SMTP_PORT", "1025")),
 		"MAIL_FROM": os.environ.get("MAIL_FROM", f"no-reply@{case['key']}.test"),
