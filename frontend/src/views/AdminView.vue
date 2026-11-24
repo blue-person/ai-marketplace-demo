@@ -3,6 +3,8 @@ import { onMounted, ref } from "vue";
 import { api } from "@/api";
 
 const registrations = ref([]);
+const accounts = ref([]);
+const action_labels = { suspend: "Suspend", reactivate: "Reactivate" };
 const loaded = ref(false);
 const reasons = ref([]);
 const rejecting = ref(null);
@@ -16,23 +18,32 @@ async function load() {
 		const data = await api("/admin/registrations");
 		registrations.value = data.registrations;
 		reasons.value = data.rejection_reasons;
+		accounts.value = (await api("/admin/accounts")).accounts;
 	} catch (e) {
 		error.value = e.message;
 	}
 	loaded.value = true;
 }
 
-async function decide(registration, action, body) {
+async function run(path, body) {
 	message.value = "";
 	error.value = "";
 	try {
-		message.value = (
-			await api(`/admin/registrations/${registration.id}/${action}`, { method: "POST", body })
-		).message;
+		message.value = (await api(path, { method: "POST", body })).message;
 	} catch (e) {
 		error.value = e.message;
 	}
 	await load();
+}
+
+function decide(registration, action, body) {
+	return run(`/admin/registrations/${registration.id}/${action}`, body);
+}
+
+function change_account(account) {
+	if (confirm(`${action_labels[account.action]} ${account.email}?`)) {
+		run(`/admin/accounts/${account.id}/${account.action}`);
+	}
 }
 
 function approve(registration) {
@@ -88,6 +99,36 @@ onMounted(load);
 					<td class="d-flex gap-2">
 						<button class="btn btn-dark btn-sm" @click="approve(registration)">Approve</button>
 						<button class="btn btn-outline-danger btn-sm" @click="open_reject(registration)">Reject</button>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<h2 class="h4 mt-5 mb-3">Accounts</h2>
+		<table v-if="accounts.length" class="table align-middle">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Email</th>
+					<th>Type</th>
+					<th>Status</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr v-for="account in accounts" :key="account.id">
+					<td>{{ account.name }}</td>
+					<td>{{ account.email }}</td>
+					<td>{{ account.role }}</td>
+					<td>{{ account.status }}</td>
+					<td>
+						<button
+							v-if="account.action"
+							class="btn btn-outline-secondary btn-sm"
+							@click="change_account(account)"
+						>
+							{{ action_labels[account.action] }}
+						</button>
 					</td>
 				</tr>
 			</tbody>
