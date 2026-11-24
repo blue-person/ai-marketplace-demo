@@ -10,6 +10,9 @@ This document records the important technical decisions of the project, one entr
 | 2 | Store passwords with Argon2id | Accepted and applied | 2026-11-23 |
 | 3 | Answer every failed login in the same way | Accepted and applied | 2026-11-23 |
 | 4 | Require at least 15 characters in passwords | Accepted and applied | 2026-11-23 |
+| 5 | Handle every SQL operation that writes data under ACID | Accepted, not applied yet | 2026-11-23 |
+| 6 | Use mysql-connector-python with a transaction helper and tenacity | Accepted and applied | 2026-11-23 |
+| 7 | Apply the transaction helper, the retry rule and the credit transfers | Accepted and applied | 2026-11-24 |
 
 ## 1. Use parameterized SQL queries
 
@@ -155,6 +158,158 @@ The constant `MIN_PASSWORD_LENGTH` in `backend/app/passwords.py` and the sign up
 ### Open points
 
 No maximum length is set yet, and passwords that are common or that appeared in leaks are not blocked, which OWASP also recommends. The sign up form does not show the minimum before sending, because the answer of the backend is the source of truth.
+
+## 5. Handle every SQL operation that writes data under ACID
+
+Decided on 2026-11-23. The status is accepted, and it is not applied yet because most modules are still to be built and the current sign up and login have to be reviewed against it.
+
+### Context
+
+The application writes to the database in many places. These are the sign up, the approval of accounts, the generation of API keys, the publication and approval of agents, the charge of an agent execution, the scheduled executions that the robot launches, the transfers between users and the referral bonus. Several requests can touch the same rows at the same time, some operations need more than one statement, and some call an external service in the middle. Without clear rules, a repeated sign up or a double approval could pass a check twice, or an operation could stop halfway and leave the data inconsistent. Money is where an error costs most, but the same risks apply to any other data.
+
+### Decision
+
+Every operation that writes to the database, or that needs a consistent view across several statements, follows ACID, which means atomicity, consistency, isolation and durability. The rules apply to every table.
+
+* Each business operation runs in one transaction that is opened and closed in one place, with a commit when everything works and a rollback on any error. A small helper in `db.py` will provide it, so no module repeats that logic.
+* The check and the change happen together, either in one conditional statement or under a row lock taken with `SELECT ... FOR UPDATE`. For example, `UPDATE accounts SET status = 'active' WHERE id = x AND status = 'pending'` approves an account only once, and `UPDATE accounts SET balance = balance - cost WHERE id = x AND balance >= cost` charges only when the balance is enough. A plain read followed by a separate write is not used.
+* The database also enforces the rules. Tables use InnoDB, and they declare unique keys, foreign keys, required columns, `CHECK` constraints and exact numeric types where they apply. A duplicate that slips through the code, such as two sign ups with the same email at the same time, is stopped by the unique key, and the code turns that error into a clean answer.
+* No call to an external service happens inside an open transaction, and emails are sent after the commit. When an operation needs the result of a call, a short transaction saves the change in the state `pending`, the call is made, and a second short transaction saves the result. When the call fails, the change is undone with a compensating action.
+* To avoid deadlocks, transactions are kept short and the rows are always touched in the same order, for example the account with the lower id first. When MySQL reports a deadlock, the whole transaction is retried a limited number of times.
+* Operations that can be repeated, such as a robot launch or a repeated request, carry a key that is unique in the database, so a repetition cannot apply the same change twice.
+* Money adds one rule. Every change of a balance also writes a row in an append-only ledger, in the same transaction, and a mistake is corrected with a new reversing row and never by editing a row. Balances have a `CHECK` that forbids negative values and use an exact numeric type.
+* Tests send many requests at the same time. They check that no balance is negative, that each balance equals the sum of its ledger rows, that a transfer keeps the total amount of money, that two sign ups with the same email create one account, and that approving the same account twice pays the referral bonus once.
+
+### Reasons
+
+The MySQL manual says that InnoDB uses REPEATABLE READ by default, and that a plain `SELECT` reads a snapshot taken by the first read of the transaction. A check made on that snapshot does not protect a later write, so two requests can both see the same state. This applies to a balance, to the status of an account and to the existence of an email in the same way. Locking reads and writes use the latest committed data, and the manual advises against mixing both kinds of reads in one transaction.
+
+The manual also says that deadlocks are not dangerous in themselves and that an application has to be ready to run a rolled back transaction again, and it suggests short transactions and a consistent order when touching rows. The documentation of Connector/Python confirms that autocommit is off by default, that `commit()` must be called after every transaction that changes data, and that `rollback()` undoes it, which is what the `db.py` helper will wrap. Constraints of type `CHECK` are enforced since MySQL 8.0.16, so the database can refuse a negative balance by itself.
+
+The practice of an append-only ledger with reversing entries and a unique key for repeated operations comes from articles about payment systems, which are not a standard and are used only as guidance.
+
+### Alternatives discarded
+
+* Applying ACID only to the operations with money, because a repeated sign up or a double approval breaks the data in the same way.
+* Reading a value with a plain `SELECT` and writing it later, because two requests can both pass the check.
+* Keeping a transaction open while the AI service answers, because the rows stay locked for all that time and the slow simulated model takes five seconds.
+* Storing money in an approximate numeric type such as `FLOAT`, which can lose fractions.
+* Editing or deleting ledger rows, because the history could no longer be trusted.
+
+### References
+
+* [InnoDB Transaction Isolation Levels, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html)
+* [Consistent Nonlocking Reads, MySQL 8.4](https://docs.oracle.com/cd/E17952_01/mysql-8.4-en/innodb-consistent-read.html)
+* [How to Minimize and Handle Deadlocks, MySQL 8.4](https://docs.oracle.com/cd/E17952_01/mysql-8.4-en/innodb-deadlocks-handling.html)
+* [CHECK constraints, MySQL 8.0](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)
+* [start_transaction(), Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-start-transaction.html)
+* [commit(), Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-commit.html)
+* [Transactions and Connection Management, SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html)
+* [Design a payment ledger, article on DEV Community](https://dev.to/gabrielanhaia/design-a-payment-ledger-idempotent-audit-compliant-reconciles-to-the-cent-59p7)
+
+### Where it applies
+
+The helper in `backend/app/db.py` and every module that writes data. These are the sign up, the rehash done at login, the update of accounts, the approval of accounts, the API keys, the catalog, the execution of agents, the scheduled executions and their robot, the transfers, the referral bonus and the seed.
+
+### Open points
+
+These sources were read through search results and not as complete pages, so the exact wording has to be checked in the manual before the report, especially the section about the locks that InnoDB sets for each statement. Three questions remain open. The first is how `cursor.rowcount` behaves with Connector/Python after an `UPDATE`, which the search did not answer and which must be tested because the conditional update depends on it. The second is the official page about exact numeric types, which confirms why money uses `DECIMAL`. The third is the choice between a small helper over Connector/Python and a library such as SQLAlchemy, whose `sessionmaker.begin()` and `with_for_update()` already cover transactions and row locks. The retry library and the rules of PEP 249 about autocommit were not researched. The scale of the money columns, the number of retries and the exact design of the keys for repeated operations are still to be decided. The current sign up checks the email with a `SELECT` before the `INSERT`, so it must be reviewed against these rules.
+
+## 6. Use mysql-connector-python with a transaction helper and tenacity
+
+Decided on 2026-11-23. The status is accepted, and it is not applied yet.
+
+### Context
+
+Decision 5 asks that every operation that writes data follows ACID, and that a transaction is repeated when MySQL reports a deadlock. The project already reads and writes through `mysql-connector-python` with SQL written by hand and a small `db.py`. A choice was needed between keeping that base and adding a library for transactions.
+
+### Decision
+
+The access to the database stays with `mysql-connector-python`, and the SQL stays written by hand. A helper named `transaction()` is added to `db.py` as a `with` block built on the `commit()` and `rollback()` methods of the connector. The library `tenacity` repeats the whole operation, with a limited number of attempts and a waiting time, when MySQL reports a deadlock.
+
+### Reasons
+
+The connector is already part of the project and its documentation lists `start_transaction()`, `commit()` and `rollback()`, so the helper is a small pattern over documented functions and not a new tool. Writing the SQL by hand keeps statements such as a conditional `UPDATE` fully visible, which makes them easy to review and to explain. No existing code has to be rewritten.
+
+The MySQL manual says that an application must be ready to run a rolled back transaction again after a deadlock. `tenacity` is a general-purpose retry library for Python, and its documentation splits the behavior in modules for the condition to retry, the waiting time and the stop rule. A deadlock can be recognized by the error number 1213 in the exception of the connector, and the documentation of Connector/Python says that its internal error class is raised, for example, when a deadlock occurred.
+
+### Alternatives discarded
+
+* SQLAlchemy, which already offers `sessionmaker.begin()` and `with_for_update()`, but it would require rewriting all the data access. Its object mode also hides the SQL that has to be reviewed, and its main benefit, changing the database engine, is not needed here.
+* A retry decorator written for this project, which works but is code written by the team for something that a library already does.
+* No retries, because the manual says deadlocks are expected and have to be handled.
+
+### References
+
+* [start_transaction(), Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-start-transaction.html)
+* [commit(), Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-commit.html)
+* [InternalError, Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-errors-internalerror.html)
+* [How to Minimize and Handle Deadlocks, MySQL 8.4](https://docs.oracle.com/cd/E17952_01/mysql-8.4-en/innodb-deadlocks-handling.html)
+* [Documentation of tenacity](https://tenacity.readthedocs.io/)
+* [Transactions and Connection Management, SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/orm/session_transaction.html)
+
+### Where it applies
+
+`backend/app/db.py` for the helper, the new dependency in the `backend` project, and every module that writes data.
+
+### Open points
+
+The documentation of `tenacity` was reached only through search results, which describe its modules but not the details. Before using it, its pages have to be read to confirm the names of the conditions, the stop rule and the waiting time that will be used. By default it raises its own error when the attempts end, so the option that returns the original error has to be confirmed. It also has to be confirmed which exception class carries the error number 1213 and whether the error 1205, which is a lock wait that took too long, should be repeated as well, since the sources treat it as less clear. The number of attempts and the waiting time are still to be decided. The repetition must wrap the whole operation including its reads, and an operation that calls an external service must not be repeated blindly, which is why decision 5 asks for a key that is unique in the database.
+
+## 7. Apply the transaction helper, the retry rule and the credit transfers
+
+Decided on 2026-11-24. The status is accepted and applied. It carries out decisions 5 and 6 for the code that exists today and for the transfers module.
+
+### Context
+
+Decisions 5 and 6 set the rules but no code followed them yet. The sign up checked the email with a `SELECT` before the `INSERT`, so two sign ups with the same email at the same time ended in a 500 with a stack trace. The route that updates an account accepted any column, so a balance column would have been editable by any user. The analysis is in `.sandbox/acid-analysis.md`.
+
+### Decision
+
+* `db.py` opens the connection with autocommit enabled, so a plain read sees the last committed data. Every write goes through `transaction()`, which calls `start_transaction()`, then `commit()` at the end of the block or `rollback()` on any error. The old `execute()` and `commit()` functions were removed, so there is no way to write outside a transaction.
+* Inside the block, `execute()` returns the number of rows the statement changed, and `insert()` returns the new id. A broken unique key (error 1062) becomes `DuplicateError`, a neutral name, and no other file imports the connector errors.
+* `retry_on_deadlock` repeats the whole decorated function only when the error number is 1213. It uses `tenacity` with 3 attempts, a random exponential wait of at most 0.5 s and `reraise=True`. The error 1205 is not repeated, and `innodb_lock_wait_timeout` is not changed.
+* The sign up has no `SELECT` before the `INSERT` and answers 409 when the unique key stops a repeated email. The rehash at login uses the same helper.
+* `GET /api/accounts/<id>` returns only the public columns and only to the owner or an administrator. `PUT` changes only the name and only of the own account.
+* The unexpected error handler answers a generic 500 and keeps the details in the log.
+* Money uses `DECIMAL(12,2)`. A table `transfers` and an append-only table `ledger_entries` were added, and `accounts.balance` has a `CHECK` against negative values. The seed gives 100.00 USD to each new account that is not an administrator, through a `seed_credit` ledger row in the same transaction.
+* A transfer locks both accounts in the order of their ids with `SELECT ... FOR UPDATE`, charges the sender with `UPDATE ... WHERE balance >= amount`, credits the recipient and writes the transfer with its two ledger rows, all in one transaction. The routes are in `routes_credit.py` and the page is `CreditView.vue`.
+
+### Reasons
+
+The MySQL manual says that an application must be ready to run a transaction again after a deadlock, that InnoDB rolls back the whole transaction in that case, and that a consistent order when touching rows lets transactions form queues without deadlocks. It also says that a lock wait timeout rolls back only the statement and that `innodb_rollback_on_timeout` is off by default, which is why only the error 1213 is repeated. The `tenacity` documentation says that without a stop rule and a wait it retries forever without waiting, that `reraise=True` raises the original error instead of `RetryError`, and that `wait_random_exponential` is meant for several processes that compete for the same resource.
+
+The pages of Connector/Python say that `rowcount` works like `mysql_affected_rows()`, and the MySQL manual says that for an `UPDATE` this value is by default the number of rows actually changed. The connection of the backend does not set `CLIENT_FOUND_ROWS`, which was checked in the running container. For that reason every conditional `UPDATE` changes a value for sure, because the amounts are always greater than zero, and a count of 0 means that the condition failed. The manual also says that an insert with too many decimals is rounded without an error even in strict mode, so the route validates the amount with `Decimal` before sending it.
+
+Tests that ran against the real stack after a rebuild with `docker compose down -v`. Twenty sign ups with the same email at the same time created one account and returned 19 answers 409. Thirty transfers of 5.00 from an account with 100.00 gave 20 successes and 10 answers 402, and the balance ended at 0.00. Forty crossed transfers between two accounts all worked and the total money did not change. No balance was negative, every balance matched the sum of its ledger rows, and each transfer had exactly two ledger rows. The log of the backend had no unhandled error. A deadlock was also provoked on purpose with two transactions that lock two accounts in opposite order. One of them was rolled back by MySQL, was run again by `retry_on_deadlock` and finished on its second attempt.
+
+### Alternatives discarded
+
+* Keeping autocommit disabled, because the transaction would start at the first read of the request and not where the block starts.
+* Repeating the error 1205, because only the statement is rolled back and the wait is a sign of a design problem more than of a normal collision.
+* Using `SKIP LOCKED` or `SERIALIZABLE`, because the conditional `UPDATE` with row locks is enough and the manual warns that `SKIP LOCKED` gives an inconsistent view.
+* Integers in cents, which are exact too, but they need a conversion at every input and output.
+
+### References
+
+* [How to Minimize and Handle Deadlocks, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks-handling.html)
+* [InnoDB Error Handling, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/innodb-error-handling.html)
+* [Locking Reads, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html)
+* [Locks Set by Different SQL Statements, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html)
+* [Rounding Behavior, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/precision-math-rounding.html)
+* [Fixed-Point Types, MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/fixed-point-types.html)
+* [ROW_COUNT(), MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/information-functions.html)
+* [cursor.rowcount, Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html)
+* [start_transaction(), Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-start-transaction.html)
+* [Documentation of tenacity](https://tenacity.readthedocs.io/en/latest/)
+
+### Where it applies
+
+`backend/app/db.py`, `routes_auth.py`, `routes_general.py`, `routes_credit.py`, `seed.py` and `__init__.py`, the file `database/init/02-credit.sql`, the page `frontend/src/views/CreditView.vue` and the test script `scripts/concurrency_check.py`. The dependency `tenacity` 9.2.1 was added to the `backend` project.
+
+### Open points
+
+The number of 3 attempts and the wait values are a choice of the team and no source gives them. The documentation of `tenacity` does not say whether it is safe with threads, and the deadlock test ran with two threads and worked, but it is not a proof. The exception class that the server raises for a `CHECK` violation was not tested, since the routes check the amounts before the database does. The script of concurrency tests expects a fresh database, because the overdraft test starts from an account with 100.00. Idempotency keys for repeated client requests were left out. The agent execution, the scheduled executions and the referral bonus are still to be built with the same helper, and they will need the three step flow for the external call. The OWASP WSTG page about usage limits could not be read, so it is not cited. A recipient is found by email, so the answer of a transfer tells whether an email exists, which is related to the open point about sign up enumeration.
 
 ## Template for a new entry
 

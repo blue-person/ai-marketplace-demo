@@ -3,7 +3,7 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
 from . import mail
-from .db import commit, execute, query
+from .db import DuplicateError, query, retry_on_deadlock, transaction
 from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
 from .security import current_user, login_required
 
@@ -12,6 +12,23 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # Constants
 LOGIN_ERROR = "Incorrect email or password."
+
+
+# Insert the account in one transaction and repeat it after a deadlock
+@retry_on_deadlock
+def _create_account(name: str, email: str, password_hash: str, role: str, status: str) -> int:
+	with transaction() as tx:
+		return tx.insert(
+			"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, %s)",
+			(name, email, password_hash, role, status),
+		)
+
+
+# Replace the stored hash in one transaction and repeat it after a deadlock
+@retry_on_deadlock
+def _replace_hash(account_id: int, password_hash: str) -> None:
+	with transaction() as tx:
+		tx.execute("UPDATE accounts SET password_hash = %s WHERE id = %s", (password_hash, account_id))
 
 
 # Read the JSON body or fall back to the form fields
@@ -33,21 +50,16 @@ def register():
 	if len(password) < MIN_PASSWORD_LENGTH:
 		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
 
-	# Stop registration when the email already belongs to an account
-	if query("SELECT id FROM accounts WHERE email = %s", (email,), one=True):
-		return jsonify(error="The email is already registered."), 409
-
 	roles = current_app.config["CASE"]["roles"]
 
 	# The account needs approval only when its role requires it in case.json
 	status = "pending" if roles.get(role, {}).get("requires_approval") else "active"
 
-	# Store the new account with a hashed password
-	execute(
-		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, %s)",
-		(name, email, hash_password(password), role, status),
-	)
-	commit()
+	# The unique key on the email decides which of two simultaneous sign ups wins
+	try:
+		_create_account(name, email, hash_password(password), role, status)
+	except DuplicateError:
+		return jsonify(error="The email is already registered."), 409
 
 	# Pick the message that matches the approval status
 	text = (
@@ -85,8 +97,7 @@ def login():
 
 	# Replace the stored hash when it was made with older settings
 	if needs_rehash(stored_hash):
-		execute("UPDATE accounts SET password_hash = %s WHERE id = %s", (hash_password(password), account["id"]))
-		commit()
+		_replace_hash(account["id"], hash_password(password))
 
 	# Store the signed in user in the session cookie
 	session.permanent = True

@@ -8,6 +8,9 @@ import mysql.connector
 from .config import db_params, load_case
 from .passwords import hash_password
 
+# Constants
+SEED_CREDIT = "100.00"
+
 
 # Retry the connection until the database accepts it
 def connect(attempts: int = 30):
@@ -18,6 +21,15 @@ def connect(attempts: int = 30):
 			print(f"[seed] Database unavailable (attempt {attempt}): {error}", flush=True)
 			time.sleep(2)
 	raise SystemExit("[seed] Could not connect to the database.")
+
+
+# Give the starting credit to an account and write it in the ledger
+def add_seed_credit(cursor, account_id: int) -> None:
+	cursor.execute("UPDATE accounts SET balance = balance + %s WHERE id = %s", (SEED_CREDIT, account_id))
+	cursor.execute(
+		"INSERT INTO ledger_entries (account_id, amount, entry_type) VALUES (%s, %s, 'seed_credit')",
+		(account_id, SEED_CREDIT),
+	)
 
 
 # Insert an account unless its email is already registered
@@ -31,6 +43,10 @@ def create_account(cursor, name: str, email: str, password: str, role: str) -> b
 		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, 'active')",
 		(name, email.lower(), hash_password(password), role),
 	)
+
+	# Only new accounts that are not administrators receive credit
+	if role != "admin":
+		add_seed_credit(cursor, cursor.lastrowid)
 	return True
 
 

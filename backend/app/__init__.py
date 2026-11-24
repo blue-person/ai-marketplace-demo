@@ -1,11 +1,10 @@
 # Import libraries
 import logging
-import traceback
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 # Import modules
-from . import db, routes_auth, routes_general, routes_internal
+from . import db, routes_auth, routes_credit, routes_general, routes_internal
 from .config import load_config
 
 
@@ -19,6 +18,7 @@ def create_app() -> Flask:
 	# Register the route blueprints
 	app.register_blueprint(routes_general.bp)
 	app.register_blueprint(routes_auth.bp)
+	app.register_blueprint(routes_credit.bp)
 	app.register_blueprint(routes_internal.bp)
 
 	# Close the database connection when the request context ends
@@ -40,10 +40,10 @@ def create_app() -> Flask:
 	def http_error(error):
 		return jsonify(error=error.description or error.name), error.code
 
-	# Log unexpected errors and send the stack trace to the client
+	# Log unexpected errors and hide the details from the client
 	@app.errorhandler(Exception)
 	def unexpected_error(error):
 		app.logger.exception("Unhandled error")
-		return jsonify(error=str(error), type=type(error).__name__, trace=traceback.format_exc()), 500
+		return jsonify(error="Internal server error."), 500
 
 	return app

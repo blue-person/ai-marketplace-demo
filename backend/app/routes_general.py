@@ -3,11 +3,15 @@ from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
 from . import external_api
-from .db import commit, execute, query
-from .security import login_required
+from .db import query, retry_on_deadlock, transaction
+from .security import current_user, login_required
 
 # Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
+
+# Constants
+MAX_NAME_LENGTH = 120
+PUBLIC_ACCOUNT_COLUMNS = "id, name, email, role, status, created_at"
 
 
 # Check that the database is reachable
@@ -45,35 +49,42 @@ def directory():
 # Profile routes
 
 
-# Return the profile of one account
+# Return the profile of one account to its owner or to an administrator
 @bp.get("/accounts/<int:account_id>")
 @login_required
 def get_account(account_id):
-	account = query("SELECT * FROM accounts WHERE id = %s", (account_id,), one=True)
+	user = current_user()
+	if account_id != user["id"] and user["role"] != "admin":
+		abort(403)
+	account = query(f"SELECT {PUBLIC_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
 	if not account:
 		abort(404)
 	return jsonify(account=account)
 
 
-# Update the given fields of one account
+# Change the name in one transaction and repeat it after a deadlock
+@retry_on_deadlock
+def _rename_account(account_id: int, name: str) -> None:
+	with transaction() as tx:
+		tx.execute("UPDATE accounts SET name = %s WHERE id = %s", (name, account_id))
+
+
+# Update the name of the signed in account and nothing else
 @bp.put("/accounts/<int:account_id>")
 @login_required
 def update_account(account_id):
+	if account_id != current_user()["id"]:
+		abort(403)
 	data = request.get_json(silent=True) or {}
-	if not data:
-		abort(400, description="There is no data to update.")
-
-	# Build the SET clause from the field names
-	assignments = ", ".join(f"{field} = %s" for field in data)
-
-	# Bind the values in field order followed by the account id
-	execute(f"UPDATE accounts SET {assignments} WHERE id = %s", (*data.values(), account_id))
-	commit()
+	name = str(data.get("name", "")).strip()
+	if not name or len(name) > MAX_NAME_LENGTH:
+		abort(400, description=f"The name must have between 1 and {MAX_NAME_LENGTH} characters.")
+	_rename_account(account_id, name)
 
 	# Keep the name stored in the session in sync after a rename
-	if account_id == session.get("account_id") and "name" in data:
-		session["name"] = data["name"]
-	return jsonify(account=query("SELECT * FROM accounts WHERE id = %s", (account_id,), one=True))
+	session["name"] = name
+	account = query(f"SELECT {PUBLIC_ACCOUNT_COLUMNS} FROM accounts WHERE id = %s", (account_id,), one=True)
+	return jsonify(account=account)
 
 
 # Call the external API or the url in the query string

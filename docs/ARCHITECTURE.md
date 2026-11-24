@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how the parts of the system are connected and which part handles each task. It covers the structure that exists today, so the modules still to be built are not included. The list of services and the way to start them are in the README.
+This document describes how the parts of the system are connected and which part handles each task. It covers the structure that exists today and the credit transfers, so the other modules still to be built are not included. The list of services and the way to start them are in the README.
 
 ## Request flow
 
@@ -21,11 +21,13 @@ The C++ worker does not connect to the database. It calls the paths under `/api/
 
 ## Backend
 
-Each area of the API is a Flask blueprint registered in `backend/app/__init__.py`, and its file is named `routes_<area>.py`. The shared helpers are `config.py`, which reads the environment and `cases/marketplace/case.json`, and `db.py`, which opens one database connection for each request. They also include `passwords.py`, which hashes and checks passwords and is the only file that knows the hashing library, `security.py`, which provides the `login_required` and `role_required` decorators, `mail.py` for email and `external_api.py` for the AI service. Finally, `seed.py` creates the admin and the test accounts.
+Each area of the API is a Flask blueprint registered in `backend/app/__init__.py`, and its file is named `routes_<area>.py`. The shared helpers are `config.py`, which reads the environment and `cases/marketplace/case.json`, and `db.py`, which opens one database connection for each request and provides the transactions. They also include `passwords.py`, which hashes and checks passwords and is the only file that knows the hashing library, `security.py`, which provides the `login_required` and `role_required` decorators, `mail.py` for email and `external_api.py` for the AI service. Finally, `seed.py` creates the admin and the test accounts.
 
 ## Data
 
-The only table today is `accounts`, which stores the name, email, password hash, role and status of each user. The status can be `pending`, `active`, `rejected` or `suspended`. At registration it is set to `pending` when the role requires approval in `case.json` and to `active` otherwise. No code changes it afterwards, because the admin panel that will do so has not been built. New tables go in numbered files in `database/init`, and those files run only when the database volume is created.
+The table `accounts` stores the name, email, password hash, role, status and balance of each user. The status can be `pending`, `active`, `rejected` or `suspended`. At registration it is set to `pending` when the role requires approval in `case.json` and to `active` otherwise. No code changes it afterwards, because the admin panel that will do so has not been built. The tables `transfers` and `ledger_entries` hold the credit transfers and the append-only list of every balance change. New tables go in numbered files in `database/init`, and those files run only when the database volume is created.
+
+Every write goes through `transaction()` in `db.py`, which commits at the end of the block and rolls back on any error. A function that can meet a deadlock is wrapped with `retry_on_deadlock`. The reasons are in decision 7 of `DECISIONS.md`.
 
 ## Frontend
 
