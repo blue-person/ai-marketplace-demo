@@ -1,12 +1,14 @@
 # Contributing
 
-These rules guide changes to the code. They come from the course requirements and from weaknesses found in the starter template, so they are conventions of the team and not a copy of an external standard. The template code still breaks some of them, and correcting that comes before any new module is built.
+These rules guide changes to the code. They come from the course requirements and from weaknesses found in the starter template, so they are conventions of the team and not a copy of an external standard.
 
 ## Security
 
 Structured Query Language (SQL) statements should use placeholders instead of string formatting, because text typed by a user then stays as data and cannot change the meaning of the query. For the same reason, responses should list the fields they return one by one and avoid returning a whole database row, so that values such as the password hash do not reach the browser.
 
 Every route that is not public should check the role and the owner of the data on the server through `require` in `backend/app/rbac.py`, which holds the rules in one place. Hiding a button in the interface changes only what the user sees and does not stop a direct request. Real keys and the `.env` file should stay out of the repository, and the example file uses `change-me` in place of every secret. All data in the seed and in the tests should be invented.
+
+Every action that changes data or is refused should leave an event in the audit log, through `audit.record` inside the same transaction or through `audit.record_alone` when there is no transaction. A new action is added to `ACTIONS` in `backend/app/audit.py`, a new category is also added to the `ENUM` of `database/init/05-audit.sql`, and a test compares the categories of both. The details of an event can hold names, ids, amounts and reasons, and should not hold passwords, hashes or API keys. The application connects to MySQL as the user `app`, so a new table needs its `GRANT` line in `database/init/99-app-user.sh`, and a table that is only appended to receives only `SELECT` and `INSERT`.
 
 ## Code
 

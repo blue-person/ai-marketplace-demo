@@ -21,6 +21,8 @@ Created by the `seed` service with the `SEED_PASSWORD` from `.env`:
 | admin | value of `ADMIN_EMAIL` (password `ADMIN_PASSWORD`) |
 | developer | dev1@marketplace.test, dev2@marketplace.test |
 | company | company1@marketplace.test, company2@marketplace.test |
+| bot | approval.robot@marketplace.test, which cannot sign in and uses the key of `WORKER_API_KEY` |
+| pending | pending.complete@marketplace.test, which the robot approves, and pending.incomplete@marketplace.test, which waits for an administrator |
 
 If you add roles, also add at least two accounts per role in `case.json`.
 

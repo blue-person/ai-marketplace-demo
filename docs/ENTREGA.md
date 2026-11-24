@@ -29,16 +29,28 @@ Todas usan la contraseña `SEED_PASSWORD` del `.env`, salvo el administrador, qu
 
 | Rol | Correo | Datos semilla asociados |
 |---|---|---|
-| admin | (valor de `ADMIN_EMAIL`) | |
-| | | |
-| | | |
+| admin | (valor de `ADMIN_EMAIL`) | Sin saldo. Ve las solicitudes, las cuentas y el registro de auditoría en el panel. |
+| developer | dev1@marketplace.test | 100.00 USD de saldo inicial y una API key. Es quien refirió a la cuenta pendiente completa. |
+| developer | dev2@marketplace.test | 100.00 USD de saldo inicial y una API key. |
+| company | company1@marketplace.test | 100.00 USD de saldo inicial y una API key. |
+| company | company2@marketplace.test | 100.00 USD de saldo inicial y una API key. |
+| bot | approval.robot@marketplace.test | No inicia sesión. Usa la API key de `WORKER_API_KEY`. |
+| company (pendiente) | pending.complete@marketplace.test | Perfil completo. El robot la aprueba en su primer ciclo y dev1 recibe 5.00 USD. |
+| developer (pendiente) | pending.incomplete@marketplace.test | Sin perfil. Espera la decisión de un administrador. |
+
+Las API keys de las cuentas activas se imprimen una sola vez en el log del servicio `seed`, con `docker compose logs seed`.
 
 ## Estado de los módulos
 
 | Módulo | Estado (completo / parcial / no implementado) | Observaciones |
 |---|---|---|
-| | | |
+| Registro y verificación (20 %) | completo | Registro con perfil y código de referido, aprobación o rechazo por un administrador, aprobación de los perfiles completos por el robot C++, API key enviada por correo con solo su hash guardado, bono de 5 USD al referidor y suspensión o reactivación de cuentas. |
+| Transferencias de crédito (10 %) | completo | Transferencias atómicas entre developers y companies, con bloqueo de filas en orden fijo y libro de movimientos. |
+| Catálogo de agentes (10 %) | no implementado | |
+| Ejecución de agentes (30 %) | no implementado | |
+| Ejecuciones programadas (30 %) | no implementado | |
+| Registro de auditoría (adicional) | completo | Registra quién hizo qué, cuándo y sobre quién, con los valores anteriores y nuevos. El administrador lo consulta en la pestaña Audit log. |
 
 ## Limitaciones conocidas
 
-<!-- Lo que saben que no funciona o que quedó pendiente. -->
+Los módulos de catálogo de agentes, ejecución de agentes y ejecuciones programadas todavía no están implementados.
