@@ -31,8 +31,10 @@ def public_config():
 def directory():
 	"""Searches active accounts by name. Example for the case's directory or catalog."""
 	term = request.args.get("q", "")
+	# The whole pattern, wildcards included, is sent as one parameter.
 	results = query(
-		f"SELECT id, name, role FROM accounts WHERE status = 'active' AND name LIKE '%{term}%' ORDER BY name"
+		"SELECT id, name, role FROM accounts WHERE status = 'active' AND name LIKE %s ORDER BY name",
+		(f"%{term}%",),
 	)
 	return jsonify(results=results)
 

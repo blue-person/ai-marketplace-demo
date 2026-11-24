@@ -58,8 +58,10 @@ def login():
 	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
 
+	# The email and the hash travel as parameters, so they are never read as part of the SQL text.
 	account = query(
-		f"SELECT * FROM accounts WHERE email = '{email}' AND password_hash = '{hash_password(password)}'",
+		"SELECT * FROM accounts WHERE email = %s AND password_hash = %s",
+		(email, hash_password(password)),
 		one=True,
 	)
 	if not account:
