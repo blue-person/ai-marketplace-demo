@@ -6,14 +6,22 @@
 ## Datos del grupo
 
 - **Grupo:** <!-- p. ej. grupo03 -->
-- **Integrantes:** <!-- nombres -->
+- **Integrantes:** Alejandro Buelvas García y John Alexander Pinto Ramos
 - **Caso:** marketplace
 - **Versión entregada:** <!-- commit o etiqueta, si usan git -->
 - **Fecha:** <!-- AAAA-MM-DD -->
 
 ## Cómo levantar la aplicación
 
-Por defecto basta con seguir `GUIA_AUDITOR.md`. Indique aquí cualquier paso adicional, o escriba "Ninguno".
+Se siguen estos pasos en orden, desde una terminal.
+
+1. Entre a la carpeta del proyecto con `cd ai-marketplace-demo`.
+2. Cree el archivo de configuración con `cp .env.example .env`.
+3. Abra `.env` y cambie cada valor `change-me` por un secreto propio.
+4. Construya y levante todos los servicios con `docker compose up --build`.
+5. Cuando termine la construcción, abra `http://localhost:8080` para usar la aplicación y `http://localhost:8025` para ver los correos que envía.
+
+Para volver a empezar con la base de datos limpia, se ejecuta `docker compose down -v` y luego el paso 4.
 
 ## Cuentas de prueba
 
