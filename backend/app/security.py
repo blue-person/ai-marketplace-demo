@@ -3,6 +3,7 @@ from functools import wraps
 from flask import abort, g, request, session
 
 # Import modules
+from . import audit
 from .api_keys import hash_api_key
 from .db import query
 from .rbac import LIST_ACCOUNTS, AccountTarget, Actor, require
@@ -91,6 +92,7 @@ def api_key_required(view):
 	@wraps(view)
 	def wrapper(*args, **kwargs):
 		if api_key_actor() is None:
+			audit.record_alone("authn_api_key_fail", "failure", None)
 			abort(401)
 		return view(*args, **kwargs)
 

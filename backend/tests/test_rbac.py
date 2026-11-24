@@ -4,6 +4,7 @@ from flask import Flask
 from werkzeug.exceptions import Forbidden
 
 # Import modules
+from app import audit
 from app.rbac import (
 	APPROVE_REGISTRATION,
 	LIST_ACCOUNTS,
@@ -158,6 +159,26 @@ def test_a_resource_of_a_type_without_rules_is_denied():
 def test_require_refuses_the_request_with_a_403():
 	with Flask("test").app_context(), pytest.raises(Forbidden):
 		require(DEVELOPER, APPROVE_REGISTRATION, COMPLETE)
+
+
+# A refused request leaves an event with the actor, the account and the permission
+def test_require_records_the_refusal_in_the_audit_log(monkeypatch):
+	calls = []
+	monkeypatch.setattr(audit, "record_alone", lambda *args, **kwargs: calls.append((args, kwargs)))
+	with Flask("test").app_context(), pytest.raises(Forbidden):
+		require(DEVELOPER, APPROVE_REGISTRATION, COMPLETE)
+	assert calls == [
+		(("authz_fail", "failure", DEVELOPER.id, COMPLETE.id), {"details": {"permission": APPROVE_REGISTRATION}})
+	]
+
+
+# A refusal of an action that acts on no account has no target
+def test_require_records_no_target_for_a_platform_action(monkeypatch):
+	calls = []
+	monkeypatch.setattr(audit, "record_alone", lambda *args, **kwargs: calls.append(args))
+	with Flask("test").app_context(), pytest.raises(Forbidden):
+		require(DEVELOPER, LIST_ACCOUNTS)
+	assert calls == [("authz_fail", "failure", DEVELOPER.id, None)]
 
 
 # A permitted request goes through without an error

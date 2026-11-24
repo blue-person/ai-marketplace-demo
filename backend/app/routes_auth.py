@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
-from . import mail
+from . import audit, mail
 from .countries import is_valid_country
 from .db import DuplicateError, query, retry_on_deadlock, transaction
 from .email_address import InvalidEmailError, normalize_email
@@ -16,6 +16,7 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # Constants
 LOGIN_ERROR = "Incorrect email or password."
+MAX_EMAIL_LENGTH = 254
 
 
 # Insert the account in one transaction and repeat it after a deadlock
@@ -34,6 +35,18 @@ def _create_account(values: tuple) -> int:
 def _replace_hash(account_id: int, password_hash: str) -> None:
 	with transaction() as tx:
 		tx.execute("UPDATE accounts SET password_hash = %s WHERE id = %s", (password_hash, account_id))
+
+
+# Record a failed login with the account when it exists and with the typed email when it does not
+def _record_login_failure(account: dict | None, email: str, reason: str) -> None:
+	audit.record_alone(
+		"authn_login_fail",
+		"failure",
+		None,
+		account["id"] if account else None,
+		None if account else email[:MAX_EMAIL_LENGTH],
+		{"reason": reason},
+	)
 
 
 # Read the JSON body or fall back to the form fields
@@ -133,7 +146,13 @@ def login():
 	password_matches = verify_password(stored_hash, password)
 
 	# Every failed login gets the same answer
-	if not account or not password_matches or not _may_sign_in(account):
+	if not account or not password_matches:
+		_record_login_failure(account, email, "wrong_credentials")
+		return jsonify(error=LOGIN_ERROR), 401
+
+	# The audit log tells an administrator that the password was right and the account cannot sign in
+	if not _may_sign_in(account):
+		_record_login_failure(account, email, "not_allowed")
 		return jsonify(error=LOGIN_ERROR), 401
 
 	# Replace the stored hash when it was made with older settings
@@ -143,6 +162,7 @@ def login():
 	# Store only the id because the role and the status are read again on each request
 	session.permanent = True
 	session["account_id"] = account["id"]
+	audit.record_alone("authn_login_success", "success", account["id"], account["id"])
 
 	# Send only the fields the interface needs
 	return jsonify(
@@ -153,6 +173,9 @@ def login():
 # End the session of the current user
 @bp.route("/logout", methods=["GET", "POST"])
 def logout():
+	user = current_user()
+	if user is not None:
+		audit.record_alone("authn_logout", "success", user["id"], user["id"])
 	session.clear()
 	return jsonify(message="Signed out.")
 

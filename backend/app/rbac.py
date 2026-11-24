@@ -1,9 +1,10 @@
 # Import libraries
 from dataclasses import dataclass
 from cadurso import Cadurso
-from flask import abort, current_app
+from flask import abort
 
 # Import modules
+from . import audit
 from .registration import is_profile_complete
 
 # Constants
@@ -145,8 +146,13 @@ def can(actor: Actor, action: str, resource=PLATFORM) -> bool:
 	return bool(rules.is_allowed(actor, action, resource))
 
 
-# Refuse the request with a 403 when the actor may not perform the action
+# Return the id of the account that the action acts on or None
+def _target_id(resource) -> int | None:
+	return resource.id if isinstance(resource, AccountTarget) else None
+
+
+# Refuse the request with a 403 and record the refusal when the actor may not perform the action
 def require(actor: Actor, action: str, resource=PLATFORM) -> None:
 	if not can(actor, action, resource):
-		current_app.logger.warning("Access denied to account %s for %s", actor.id, action)
+		audit.record_alone("authz_fail", "failure", actor.id, _target_id(resource), details={"permission": action})
 		abort(403)
