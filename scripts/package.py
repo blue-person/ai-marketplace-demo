@@ -53,8 +53,8 @@ def main() -> int:
         print("The group identifier only accepts letters, numbers, hyphen and underscore.", file=sys.stderr)
         return 1
 
-    if not (ROOT / "ENTREGA.md").exists():
-        print("ENTREGA.md is missing from the project root.", file=sys.stderr)
+    if not (ROOT / "docs" / "ENTREGA.md").exists():
+        print("docs/ENTREGA.md is missing.", file=sys.stderr)
         return 1
 
     output_dir = ROOT / "deliveries"

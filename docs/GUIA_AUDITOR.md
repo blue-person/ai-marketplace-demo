@@ -19,10 +19,10 @@ Registre en su informe el nombre del archivo y su huella.
 Descomprima en una carpeta nueva y, desde la raíz del proyecto:
 
 ```bash
-cp .env.example .env
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
 ```
 
-Complete los secretos con valores propios y verifique que `CASE` en `.env` coincida con el caso del `ENTREGA.md` del grupo. Las credenciales del administrador y de las cuentas de prueba están en `.env`, y los correos de las cuentas de prueba en el `ENTREGA.md` del grupo.
+Verifique que `CASE` en `.env` coincida con el caso del `ENTREGA.md` del grupo. Las credenciales del administrador y de las cuentas de prueba están en `.env`, y los correos de las cuentas de prueba en el `ENTREGA.md` del grupo.
 
 ## 3. Levantar la aplicación
 
