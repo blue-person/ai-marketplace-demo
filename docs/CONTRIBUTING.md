@@ -6,7 +6,7 @@ These rules guide changes to the code. They come from the course requirements an
 
 Structured Query Language (SQL) statements should use placeholders instead of string formatting, because text typed by a user then stays as data and cannot change the meaning of the query. For the same reason, responses should list the fields they return one by one and avoid returning a whole database row, so that values such as the password hash do not reach the browser.
 
-Every route that is not public should check the role and the owner of the data on the server. Hiding a button in the interface changes only what the user sees and does not stop a direct request. Real keys and the `.env` file should stay out of the repository, and the example file uses `change-me` in place of every secret. All data in the seed and in the tests should be invented.
+Every route that is not public should check the role and the owner of the data on the server through `require` in `backend/app/rbac.py`, which holds the rules in one place. Hiding a button in the interface changes only what the user sees and does not stop a direct request. Real keys and the `.env` file should stay out of the repository, and the example file uses `change-me` in place of every secret. All data in the seed and in the tests should be invented.
 
 ## Code
 
@@ -16,7 +16,7 @@ Python files are indented with tabs and formatted with Ruff, whose settings are 
 
 The Vue and JavaScript files follow the same rule and are formatted with Prettier, whose settings are in `frontend/.prettierrc.json`. Running `npm run format` inside `frontend` before each commit applies the style, and `npm run format:check` only verifies it.
 
-Any change of balance should run in a single transaction that locks the rows involved, so that two simultaneous requests cannot spend the same money. The robot should reach the backend only through `/api/internal` and send the shared token on every call.
+Any change of balance should run in a single transaction that locks the rows involved, so that two simultaneous requests cannot spend the same money. The robot should reach the backend only through `/api/internal` and send the API key of its own account on every call.
 
 The unit tests are in `backend/tests` and run from `backend` with `uv run python -m pytest tests`. How a test should be chosen and written is described in `docs/TESTS.md`, and the reasons are in the decision "Tests only for a named behaviour" of `DECISIONS.md`, and the concurrency script `scripts/concurrency_check.py` checks the parts that need MySQL.
 

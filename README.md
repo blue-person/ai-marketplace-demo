@@ -4,7 +4,7 @@ This project is a web platform where developers publish artificial intelligence 
 
 ## Current status
 
-The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot, API keys sent by email, referral bonuses, credit transfers with a ledger, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. The agent catalog, agent execution and scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
+The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot that has an account of its own, the suspension and reactivation of accounts by an administrator, API keys sent by email, referral bonuses, credit transfers with a ledger, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. The agent catalog, agent execution and scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
 
 ## Services
 
@@ -15,7 +15,7 @@ The application runs as seven services under Docker Compose, which are described
 | `web` | nginx, Vue 3, Bootstrap 5 | Serves the interface and forwards the requests that start with `/api` to the backend |
 | `backend` | Python 3.13, Flask, gunicorn | Applies the business rules and exposes the REST application programming interface (API) |
 | `db` | MySQL 8.4 | Stores the data |
-| `worker` | C++17, libcurl | Asks the backend to approve complete profiles on a timer |
+| `worker` | C++17, libcurl | Reads the pending registrations on a timer and approves the ones with a complete profile through the backend |
 | `mailpit` | Mailpit | Receives every email the application sends and keeps it locally, so nothing reaches a real address |
 | `mock-api` | Flask | Simulates the OpenRouter AI service, which avoids real keys and costs |
 | `seed` | Same image as the backend | Runs once at startup to create the admin and the test accounts |
@@ -28,7 +28,7 @@ The Python parts are managed with [uv](https://docs.astral.sh/uv/). The `backend
 
 ## Quick start
 
-To start, copy the example settings and replace every `change-me` value with a secret of your own. Then build and start the services.
+To start, copy the example settings and replace every `change-me` value with a secret of your own. The value of `WORKER_API_KEY` is the API key of the approval robot, and it needs at least 32 characters, for example `mk_` followed by the output of `openssl rand -hex 24`. Then build and start the services.
 
 ```bash
 cp .env.example .env
