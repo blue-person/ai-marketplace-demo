@@ -58,9 +58,10 @@ def _record_login_failure(account: dict | None, email: str, reason: str) -> None
 	)
 
 
-# Read the JSON body or fall back to the form fields
+# Read the JSON object or fall back to the form fields when the body is anything else
 def _data() -> dict:
-	return request.get_json(silent=True) or request.form.to_dict()
+	body = request.get_json(silent=True)
+	return body if isinstance(body, dict) else request.form.to_dict()
 
 
 # Read the optional profile fields and refuse the ones that are not valid
