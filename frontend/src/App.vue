@@ -32,6 +32,9 @@ async function sign_out() {
 				<li class="nav-item" v-if="session.user">
 					<RouterLink class="nav-link" to="/dashboard">Dashboard</RouterLink>
 				</li>
+				<li class="nav-item" v-if="session.user">
+					<RouterLink class="nav-link" to="/credit">Credit</RouterLink>
+				</li>
 			</ul>
 			<div v-if="session.user" class="d-flex align-items-center gap-3 text-white">
 				<span v-html="`${session.user.name} (${session.user.role})`"></span>

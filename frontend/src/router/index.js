@@ -5,6 +5,7 @@ import LoginView from "@/views/LoginView.vue";
 import RegisterView from "@/views/RegisterView.vue";
 import DashboardView from "@/views/DashboardView.vue";
 import DirectoryView from "@/views/DirectoryView.vue";
+import CreditView from "@/views/CreditView.vue";
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -14,6 +15,7 @@ const router = createRouter({
 		{ path: "/register", name: "register", component: RegisterView },
 		{ path: "/directory", name: "directory", component: DirectoryView },
 		{ path: "/dashboard", name: "dashboard", component: DashboardView, meta: { requires_session: true } },
+		{ path: "/credit", name: "credit", component: CreditView, meta: { requires_session: true } },
 		// Example of a route restricted by role:
 		// { path: "/admin", component: AdminView, meta: { requires_session: true, roles: ["admin"] } },
 	],
