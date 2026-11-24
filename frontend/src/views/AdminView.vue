@@ -3,8 +3,10 @@ import { onMounted, ref } from "vue";
 import { api } from "@/api";
 
 const registrations = ref([]);
+const loaded = ref(false);
 const reasons = ref([]);
-const chosen_reason = ref({});
+const rejecting = ref(null);
+const reason = ref("");
 const message = ref("");
 const error = ref("");
 
@@ -17,6 +19,7 @@ async function load() {
 	} catch (e) {
 		error.value = e.message;
 	}
+	loaded.value = true;
 }
 
 async function decide(registration, action, body) {
@@ -36,13 +39,19 @@ function approve(registration) {
 	if (confirm(`Approve ${registration.email}?`)) decide(registration, "approve");
 }
 
-function reject(registration) {
-	const reason = chosen_reason.value[registration.id];
-	if (!reason) {
-		error.value = "Choose a reason before rejecting.";
-		return;
-	}
-	if (confirm(`Reject ${registration.email}?`)) decide(registration, "reject", { reason });
+function open_reject(registration) {
+	reason.value = "";
+	rejecting.value = registration;
+}
+
+function cancel_reject() {
+	rejecting.value = null;
+}
+
+async function confirm_reject() {
+	const registration = rejecting.value;
+	rejecting.value = null;
+	await decide(registration, "reject", { reason: reason.value });
 }
 
 onMounted(load);
@@ -53,8 +62,8 @@ onMounted(load);
 		<h1 class="h3 mb-3">Registration requests</h1>
 		<div v-if="message" class="alert alert-success py-2">{{ message }}</div>
 		<div v-if="error" class="alert alert-danger py-2">{{ error }}</div>
-		<p v-if="!registrations.length">There are no pending requests.</p>
-		<table v-else class="table align-middle">
+		<p v-if="loaded && !registrations.length">There are no pending requests.</p>
+		<table v-else-if="registrations.length" class="table align-middle">
 			<thead>
 				<tr>
 					<th>Name</th>
@@ -78,16 +87,36 @@ onMounted(load);
 					<td>{{ registration.profile_complete ? "Complete" : "Incomplete" }}</td>
 					<td class="d-flex gap-2">
 						<button class="btn btn-dark btn-sm" @click="approve(registration)">Approve</button>
-						<select v-model="chosen_reason[registration.id]" class="form-select form-select-sm w-auto">
-							<option :value="undefined">Reason</option>
-							<option v-for="reason in reasons" :key="reason.key" :value="reason.key">
-								{{ reason.label }}
-							</option>
-						</select>
-						<button class="btn btn-outline-danger btn-sm" @click="reject(registration)">Reject</button>
+						<button class="btn btn-outline-danger btn-sm" @click="open_reject(registration)">Reject</button>
 					</td>
 				</tr>
 			</tbody>
 		</table>
+
+		<div v-if="rejecting">
+			<div class="modal d-block" tabindex="-1" role="dialog">
+				<div class="modal-dialog modal-dialog-centered">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h2 class="modal-title h5">Reject {{ rejecting.email }}</h2>
+						</div>
+						<div class="modal-body">
+							<label class="form-label" for="reason">Please choose a reason from the list.</label>
+							<select id="reason" v-model="reason" class="form-select">
+								<option value="">Select a reason</option>
+								<option v-for="item in reasons" :key="item.key" :value="item.key">
+									{{ item.label }}
+								</option>
+							</select>
+						</div>
+						<div class="modal-footer">
+							<button class="btn btn-outline-secondary" @click="cancel_reject">Cancel</button>
+							<button class="btn btn-danger" :disabled="!reason" @click="confirm_reject">Continue</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-backdrop show"></div>
+		</div>
 	</div>
 </template>
