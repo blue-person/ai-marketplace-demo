@@ -1,0 +1,18 @@
+{
+  "name": "AI Agent Marketplace",
+  "roles": {
+    "developer": { "label": "Developer", "public_registration": true, "requires_approval": true },
+    "company": { "label": "Company", "public_registration": true, "requires_approval": true },
+    "admin": { "label": "Administrator", "public_registration": false, "requires_approval": false }
+  },
+  "test_accounts": [
+    { "name": "Developer One", "email": "dev1@marketplace.test", "role": "developer" },
+    { "name": "Developer Two", "email": "dev2@marketplace.test", "role": "developer" },
+    { "name": "Company One", "email": "company1@marketplace.test", "role": "company" },
+    { "name": "Company Two", "email": "company2@marketplace.test", "role": "company" }
+  ],
+  "external_api": {
+    "name": "OpenRouter (simulated)",
+    "simulator_url": "http://mock-api:9000/openrouter/api/v1"
+  }
+}

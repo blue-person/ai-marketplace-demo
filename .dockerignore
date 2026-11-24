@@ -1,0 +1,7 @@
+.git
+.sandbox
+.env
+deliveries
+**/node_modules
+**/dist
+**/__pycache__

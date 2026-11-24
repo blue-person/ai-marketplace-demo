@@ -1,0 +1,18 @@
+{
+  "name": "HealthSync",
+  "roles": {
+    "patient": { "label": "Patient", "public_registration": true, "requires_approval": false },
+    "professional": { "label": "Health professional", "public_registration": true, "requires_approval": true },
+    "admin": { "label": "Administrator", "public_registration": false, "requires_approval": false }
+  },
+  "test_accounts": [
+    { "name": "Patient One", "email": "patient1@healthsync.test", "role": "patient" },
+    { "name": "Patient Two", "email": "patient2@healthsync.test", "role": "patient" },
+    { "name": "Professional One", "email": "professional1@healthsync.test", "role": "professional" },
+    { "name": "Professional Two", "email": "professional2@healthsync.test", "role": "professional" }
+  ],
+  "external_api": {
+    "name": "Open mHealth (simulated)",
+    "simulator_url": "http://mock-api:9000/openmhealth/v1"
+  }
+}

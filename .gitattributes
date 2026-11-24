@@ -1,2 +1,4 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# LF line endings in all text files, also on Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary

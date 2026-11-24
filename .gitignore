@@ -1,0 +1,29 @@
+# Secrets: never commit real values (only .env.example)
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+worker/robot
+
+# Local working files (temporary files, logs) and generated deliveries
+.sandbox/
+deliveries/
+*.log
+
+# Course material and personal notes
+*.pdf
+TA.txt
+CLAUDE.md
+
+# Operating system and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
