@@ -8,7 +8,7 @@ from .db import query, retry_on_deadlock, transaction
 from .passwords import PASSWORD_RULES
 from .rbac import MANAGE_API_KEY, RENAME_ACCOUNT, VIEW_ACCOUNT
 from .registration import MAX_NAME_LENGTH, regenerate_api_key
-from .security import authorized_target, current_actor, login_required
+from .security import authorized_target, current_actor, login_required, read_json_object
 
 # Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
@@ -98,7 +98,7 @@ def _rename_account(account_id: int, name: str) -> None:
 @login_required
 def update_account(account_id):
 	authorized_target(current_actor(), RENAME_ACCOUNT, account_id)
-	data = request.get_json(silent=True) or {}
+	data = read_json_object()
 	name = str(data.get("name", "")).strip()
 	if not name or len(name) > MAX_NAME_LENGTH:
 		abort(400, description=f"The name must have between 1 and {MAX_NAME_LENGTH} characters.")

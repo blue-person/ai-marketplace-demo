@@ -1,12 +1,12 @@
 # Import libraries
 from decimal import Decimal, InvalidOperation
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify
 
 # Import modules
 from . import audit
 from .db import query, retry_on_deadlock, transaction
 from .rbac import RECEIVE_CREDIT, SEND_CREDIT, can, require
-from .security import current_actor, current_user, find_target_by_email, login_required
+from .security import current_actor, current_user, find_target_by_email, login_required, read_json_object
 
 # Blueprint of the credit routes
 bp = Blueprint("credit", __name__, url_prefix="/api/credit")
@@ -106,7 +106,7 @@ def credit():
 def create_transfer():
 	actor = current_actor()
 	require(actor, SEND_CREDIT)
-	data = request.get_json(silent=True) or {}
+	data = read_json_object()
 	recipient_email = str(data.get("recipient_email", "")).strip().lower()
 	amount = _parse_amount(data.get("amount"))
 	sender_id = actor.id

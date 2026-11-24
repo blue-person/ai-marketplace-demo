@@ -14,7 +14,7 @@ from .rbac import (
 	require,
 )
 from .registration import REJECTION_REASONS, approve_account, pending_registrations, reject_account
-from .security import authorized_target, current_actor, login_required
+from .security import authorized_target, current_actor, login_required, read_json_object
 
 # Blueprint of the administrator routes
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -52,7 +52,7 @@ def approve_registration(account_id):
 def reject_registration(account_id):
 	actor = current_actor()
 	authorized_target(actor, REJECT_REGISTRATION, account_id)
-	data = request.get_json(silent=True) or {}
+	data = read_json_object()
 	reason = str(data.get("reason", ""))
 	if reason not in REJECTION_REASONS:
 		abort(400, description="The reason is not valid.")

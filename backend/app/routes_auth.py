@@ -16,7 +16,7 @@ from .passwords import (
 )
 from .rbac import SIGN_IN, Actor, can
 from .registration import MAX_NAME_LENGTH, find_referrer_id, is_valid_organization
-from .security import current_user, login_required
+from .security import current_user, login_required, read_json_object
 
 # Blueprint of the auth routes
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -60,8 +60,7 @@ def _record_login_failure(account: dict | None, email: str, reason: str) -> None
 
 # Read the JSON object or fall back to the form fields when the body is anything else
 def _data() -> dict:
-	body = request.get_json(silent=True)
-	return body if isinstance(body, dict) else request.form.to_dict()
+	return read_json_object() or request.form.to_dict()
 
 
 # Read the optional profile fields and refuse the ones that are not valid

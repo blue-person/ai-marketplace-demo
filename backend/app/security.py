@@ -38,6 +38,12 @@ def current_actor() -> Actor:
 	return Actor(user["id"], user["role"], user["status"])
 
 
+# Return the JSON object of the request body or an empty dictionary when the body is anything else
+def read_json_object() -> dict:
+	body = request.get_json(silent=True)
+	return body if isinstance(body, dict) else {}
+
+
 # Reject requests that have no signed in user
 def login_required(view):
 
