@@ -17,6 +17,7 @@ def load_case() -> dict:
 	return data
 
 
+# Build the MySQL connection parameters from the environment
 def db_params() -> dict:
 	return {
 		"host": os.environ.get("DB_HOST", "db"),
@@ -28,12 +29,14 @@ def db_params() -> dict:
 	}
 
 
+# Build the Flask configuration values from the environment and the case
 def load_config() -> dict:
 	case = load_case()
 
+	# Use the environment URL when set and the case default otherwise
 	external_url = os.environ.get("EXTERNAL_API_BASE_URL", "").strip() or case["external_api"]["simulator_url"]
 
-	# The cookie stays readable by JavaScript because the frontend checks it to know if a session is open
+	# The frontend reads the session cookie to detect an open session
 	return {
 		"SECRET_KEY": os.environ.get("SECRET_KEY", "template-secret"),
 		"SESSION_COOKIE_NAME": "session",

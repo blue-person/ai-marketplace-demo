@@ -7,6 +7,7 @@ from .db import commit, execute, query
 from .passwords import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
 from .security import current_user, login_required
 
+# Blueprint of the auth routes
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # Constants
@@ -18,6 +19,7 @@ def _data() -> dict:
 	return request.get_json(silent=True) or request.form.to_dict()
 
 
+# Create an account and send a registration email
 @bp.post("/register")
 def register():
 	data = _data()
@@ -31,6 +33,7 @@ def register():
 	if len(password) < MIN_PASSWORD_LENGTH:
 		abort(400, description=f"The password must be at least {MIN_PASSWORD_LENGTH} characters long.")
 
+	# Stop registration when the email already belongs to an account
 	if query("SELECT id FROM accounts WHERE email = %s", (email,), one=True):
 		return jsonify(error="The email is already registered."), 409
 
@@ -38,12 +41,15 @@ def register():
 
 	# The account needs approval only when its role requires it in case.json
 	status = "pending" if roles.get(role, {}).get("requires_approval") else "active"
+
+	# Store the new account with a hashed password
 	execute(
 		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, %s)",
 		(name, email, hash_password(password), role, status),
 	)
 	commit()
 
+	# Pick the message that matches the approval status
 	text = (
 		"Your account was created and is pending approval."
 		if status == "pending"
@@ -55,20 +61,21 @@ def register():
 	return jsonify(message=text), 201
 
 
+# Check the credentials and start a session
 @bp.post("/login")
 def login():
 	data = _data()
 	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
 
-	# Find the account by email and check the password in Python against its stored hash
+	# Search the account by email
 	account = query(
 		"SELECT id, name, email, role, status, password_hash FROM accounts WHERE email = %s",
 		(email,),
 		one=True,
 	)
 
-	# Run the check even when the account does not exist to keep the time similar
+	# Check the password even when the account does not exist
 	stored_hash = account["password_hash"] if account else None
 	password_matches = verify_password(stored_hash, password)
 
@@ -81,6 +88,7 @@ def login():
 		execute("UPDATE accounts SET password_hash = %s WHERE id = %s", (hash_password(password), account["id"]))
 		commit()
 
+	# Store the signed in user in the session cookie
 	session.permanent = True
 	session["account_id"] = account["id"]
 	session["name"] = account["name"]
@@ -93,12 +101,14 @@ def login():
 	)
 
 
+# End the session of the current user
 @bp.route("/logout", methods=["GET", "POST"])
 def logout():
 	session.clear()
 	return jsonify(message="Signed out.")
 
 
+# Return the account of the signed in user
 @bp.get("/me")
 @login_required
 def me():

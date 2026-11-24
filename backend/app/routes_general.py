@@ -6,15 +6,18 @@ from . import external_api
 from .db import commit, execute, query
 from .security import login_required
 
+# Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
 
 
+# Check that the database is reachable
 @bp.get("/health")
 def health():
 	query("SELECT 1 AS ok", one=True)
 	return jsonify(status="ok")
 
 
+# Return the public settings of the active case
 @bp.get("/config")
 def public_config():
 	case = current_app.config["CASE"]
@@ -40,6 +43,9 @@ def directory():
 
 
 # Profile routes
+
+
+# Return the profile of one account
 @bp.get("/accounts/<int:account_id>")
 @login_required
 def get_account(account_id):
@@ -49,13 +55,18 @@ def get_account(account_id):
 	return jsonify(account=account)
 
 
+# Update the given fields of one account
 @bp.put("/accounts/<int:account_id>")
 @login_required
 def update_account(account_id):
 	data = request.get_json(silent=True) or {}
 	if not data:
 		abort(400, description="There is no data to update.")
+
+	# Build the SET clause from the field names
 	assignments = ", ".join(f"{field} = %s" for field in data)
+
+	# Bind the values in field order followed by the account id
 	execute(f"UPDATE accounts SET {assignments} WHERE id = %s", (*data.values(), account_id))
 	commit()
 
@@ -65,7 +76,7 @@ def update_account(account_id):
 	return jsonify(account=query("SELECT * FROM accounts WHERE id = %s", (account_id,), one=True))
 
 
-# Call the external API of the case or the url given in the query string
+# Call the external API or the url in the query string
 @bp.get("/example/external-api")
 @login_required
 def external_api_example():
@@ -75,6 +86,8 @@ def external_api_example():
 		if address:
 			response = external_api.get(address)
 			return jsonify(status=response.status_code, content=response.text)
+
+		# Serve heart rate samples when the case is healthsync
 		if case_key == "healthsync":
 			response = external_api.get(
 				external_api.url("dataPoints"),

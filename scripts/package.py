@@ -48,6 +48,7 @@ ALLOWED = {".env.example"}
 MAX_MB = 50
 
 
+# Tell whether a path is left out of the ZIP
 def is_excluded(relative_path: Path) -> bool:
 	if any(part in EXCLUDED_DIRECTORIES for part in relative_path.parts[:-1]):
 		return True
@@ -62,6 +63,7 @@ def is_excluded(relative_path: Path) -> bool:
 	return any(fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(text, pattern) for pattern in EXCLUDED_FILES)
 
 
+# Build the delivery ZIP and print its fingerprint
 def main() -> int:
 	parser = argparse.ArgumentParser(
 		description="Builds the project delivery ZIP and prints its SHA-256 fingerprint",
@@ -70,7 +72,7 @@ def main() -> int:
 	parser.add_argument("--group", required=True, help="group identifier, for example group03")
 	args = parser.parse_args()
 
-	# The group becomes part of the ZIP file name and of its folder names
+	# The group name is used in the ZIP and in its folders
 	if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", args.group):
 		print("The group identifier only accepts letters, numbers, hyphen and underscore.", file=sys.stderr)
 		return 1
@@ -83,7 +85,7 @@ def main() -> int:
 	output_dir = ROOT / "deliveries"
 	output_dir.mkdir(exist_ok=True)
 
-	# The ZIP goes to the deliveries folder with the group and the date in its name
+	# Name the ZIP with the group and the date
 	output = output_dir / f"{args.group}-{datetime.now():%Y%m%d-%H%M}.zip"
 
 	# Collect every regular file that is not excluded and not a symbolic link
@@ -96,6 +98,7 @@ def main() -> int:
 		for file in files:
 			zip_output.write(file, Path(args.group) / file.relative_to(ROOT))
 
+	# Measure the ZIP size and compute its SHA-256 fingerprint
 	size_mb = output.stat().st_size / (1024 * 1024)
 	fingerprint = hashlib.sha256(output.read_bytes()).hexdigest()
 

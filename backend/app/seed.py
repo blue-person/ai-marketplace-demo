@@ -9,6 +9,7 @@ from .config import db_params, load_case
 from .passwords import hash_password
 
 
+# Retry the connection until the database accepts it
 def connect(attempts: int = 30):
 	for attempt in range(1, attempts + 1):
 		try:
@@ -19,11 +20,13 @@ def connect(attempts: int = 30):
 	raise SystemExit("[seed] Could not connect to the database.")
 
 
+# Insert an account unless its email is already registered
 def create_account(cursor, name: str, email: str, password: str, role: str) -> bool:
 	cursor.execute("SELECT id FROM accounts WHERE email = %s", (email.lower(),))
 	if cursor.fetchone():
 		return False
 
+	# Store the account with a hashed password
 	cursor.execute(
 		"INSERT INTO accounts (name, email, password_hash, role, status) VALUES (%s, %s, %s, %s, 'active')",
 		(name, email.lower(), hash_password(password), role),
@@ -31,12 +34,14 @@ def create_account(cursor, name: str, email: str, password: str, role: str) -> b
 	return True
 
 
+# Create the default accounts of the active case
 def main() -> int:
 	case = load_case()
 
 	# Password shared by the test accounts and set with SEED_PASSWORD
 	seed_password = os.environ.get("SEED_PASSWORD", "test1234")
 
+	# Open the database connection and a cursor
 	conn = connect()
 	cursor = conn.cursor()
 	try:
@@ -57,16 +62,22 @@ def main() -> int:
 
 		# The seed data of the modules goes here
 
+		# Save all accounts in a single transaction
 		conn.commit()
 		print(f"[seed] Case '{case['key']}': {created} new account(s).", flush=True)
 		return 0
+
+	# Undo partial changes when seeding fails
 	except Exception:
 		conn.rollback()
 		raise
+
+	# Release the cursor and the connection
 	finally:
 		cursor.close()
 		conn.close()
 
 
+# Run the seed when the file is executed directly
 if __name__ == "__main__":
 	sys.exit(main())

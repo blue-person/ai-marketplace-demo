@@ -9,9 +9,10 @@ TIME_COST = 2
 MEMORY_COST_KIB = 19 * 1024
 PARALLELISM = 1
 
+# Argon2 hasher with the cost settings
 _hasher = PasswordHasher(time_cost=TIME_COST, memory_cost=MEMORY_COST_KIB, parallelism=PARALLELISM)
 
-# A real hash of a random value so a missing account takes a similar time as a wrong password
+# Dummy hash that makes a missing account cost the same as a wrong password
 _DUMMY_HASH = _hasher.hash(secrets.token_urlsafe(16))
 
 
@@ -27,6 +28,8 @@ def verify_password(stored_hash: str | None, password: str) -> bool:
 		matches = _hasher.verify(hash_to_check, password)
 	except (VerificationError, InvalidHashError):
 		return False
+
+	# A missing account cannot match even though the dummy hash was checked
 	return matches and stored_hash is not None
 
 

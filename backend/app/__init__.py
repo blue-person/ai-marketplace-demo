@@ -9,16 +9,19 @@ from . import db, routes_auth, routes_general, routes_internal
 from .config import load_config
 
 
+# Create and configure the Flask application
 def create_app() -> Flask:
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 	app = Flask(__name__)
 	app.config.update(load_config())
 
+	# Register the route blueprints
 	app.register_blueprint(routes_general.bp)
 	app.register_blueprint(routes_auth.bp)
 	app.register_blueprint(routes_internal.bp)
 
+	# Close the database connection when the request context ends
 	app.teardown_appcontext(db.close)
 
 	# Let the Vite dev server and other clients call the API

@@ -3,6 +3,7 @@ from functools import wraps
 from flask import abort, session
 
 
+# Return the logged in user from the session or None
 def current_user():
 	if "account_id" not in session:
 		return None
@@ -14,7 +15,10 @@ def current_user():
 	}
 
 
+# Reject requests that have no logged in user
 def login_required(view):
+
+	# Check the session before calling the view
 	@wraps(view)
 	def wrapper(*args, **kwargs):
 		if current_user() is None:
@@ -24,9 +28,13 @@ def login_required(view):
 	return wrapper
 
 
-# Use it below the route decorator as in @role_required("admin")
+# Use it below the route decorator and list the allowed roles
 def role_required(*roles):
+
+	# Receive the view to protect
 	def decorator(view):
+
+		# Check the session and the role before calling the view
 		@wraps(view)
 		def wrapper(*args, **kwargs):
 			user = current_user()

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from flask import Flask, jsonify, request
 
+# Flask app singleton
 app = Flask(__name__)
 
 # Constants
@@ -23,6 +24,7 @@ METRICS = {
 }
 
 
+# Build a JSON error response with its status code
 def error(code: int, message: str):
 	return jsonify(error={"code": code, "message": message}), code
 
@@ -33,17 +35,23 @@ def require_key():
 	if request.path == "/health":
 		return None
 	header = request.headers.get("Authorization", "")
+
+	# Require a non empty Bearer token in the Authorization header
 	if not header.startswith("Bearer ") or len(header) <= len("Bearer "):
 		return error(401, "Missing Authorization: Bearer <key> header.")
 	return None
 
 
+# Report that the service is running
 @app.get("/health")
 def health():
 	return jsonify(status="ok")
 
 
 # OpenRouter routes
+
+
+# Return the simulated models with their prices
 @app.get("/openrouter/api/v1/models")
 def models():
 	return jsonify(
@@ -54,6 +62,7 @@ def models():
 	)
 
 
+# Answer a chat request with a simulated completion
 @app.post("/openrouter/api/v1/chat/completions")
 def chat():
 	body = request.get_json(silent=True) or {}
@@ -70,12 +79,16 @@ def chat():
 
 	# Echo the last message cut to 200 characters
 	last = str(messages[-1].get("content", "")) if isinstance(messages[-1], dict) else ""
+
+	# Join the text of every message to estimate the input size
 	input_text = " ".join(str(m.get("content", "")) for m in messages if isinstance(m, dict))
 	content = f"[Simulated reply from {model}] I received: {last[:200]}"
 
 	# Count words as a rough estimate of the token usage
 	input_tokens = max(1, len(input_text.split()))
 	output_tokens = len(content.split())
+
+	# Build the response in the OpenAI chat completion format
 	return jsonify(
 		id=f"gen-sim-{uuid.uuid4()}",
 		object="chat.completion",
@@ -91,10 +104,15 @@ def chat():
 
 
 # Open mHealth routes
+
+
+# Return simulated Open mHealth data points for one metric
 @app.get("/openmhealth/v1/dataPoints")
 def data_points():
 	schema = request.args.get("schema", "")
 	user = request.args.get("user", "")
+
+	# Read the days parameter and clamp it between 1 and 30
 	try:
 		days = min(max(int(request.args.get("days", "1")), 1), 30)
 	except ValueError:
@@ -104,23 +122,30 @@ def data_points():
 	if not user or len(user) > 64:
 		return error(400, "The 'user' parameter is required.")
 
+	# Unpack the field name unit and limits of the metric
 	field, unit, minimum, maximum, outlier = METRICS[schema]
 
-	# Seed the random generator from the user and metric so the same input gives the same data
+	# Seed the random generator from the user and metric
 	seed = int(hashlib.sha256(f"{user}:{schema}".encode()).hexdigest()[:16], 16)
 	rng = random.Random(seed)
 
 	# Heart rate and oxygen saturation are sampled hourly and the other metrics daily
 	per_day = 24 if schema in ("heart-rate", "oxygen-saturation") else 1
+
+	# Current UTC time truncated to the start of the hour
 	now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
-	# The shape is inspired by Open mHealth schemas but is not an exact replica
+	# The shape follows Open mHealth without copying it exactly
 	points = []
+
+	# Build one data point for each sampling step back in time
 	for i in range(days * per_day):
 		moment = now - timedelta(hours=i) if per_day == 24 else now - timedelta(days=i)
 
-		# About 5 percent of the values are out of range so alerts can be tested
+		# Some values are out of range on purpose to test alerts
 		value = outlier if rng.random() < 0.05 else rng.randint(minimum, maximum)
+
+		# Add one data point in the Open mHealth layout
 		points.append(
 			{
 				"header": {

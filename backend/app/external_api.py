@@ -17,6 +17,7 @@ def _headers() -> dict:
 	return headers
 
 
+# Build the full external API address for a path
 def url(path: str) -> str:
 	return f"{current_app.config['EXTERNAL_API_BASE_URL']}/{path.lstrip('/')}"
 
