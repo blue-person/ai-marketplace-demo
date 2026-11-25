@@ -11,6 +11,7 @@ from .config import db_params, load_case
 from .executions import request_hash
 from .money import split_revenue
 from .passwords import hash_password
+from .schedules import validate_schedule
 
 # Constants
 SEED_CREDIT = "100.00"
@@ -193,6 +194,47 @@ def create_execution(cursor, execution: dict, platform_id: int) -> bool:
 	return True
 
 
+# Insert a schedule of the case with the rules of the API unless the account already has it
+def create_schedule(cursor, item: dict) -> bool:
+	account_id = find_account_id(cursor, item["account"])
+	developer_id = find_account_id(cursor, item["developer"])
+	cursor.execute(
+		"SELECT id FROM agents WHERE developer_id = %s AND name = %s AND status = 'approved'",
+		(developer_id, item["agent"]),
+	)
+	agent = cursor.fetchone()
+	if account_id is None or agent is None:
+		return False
+	schedule = validate_schedule({**item, "agent_id": agent[0]})
+	cursor.execute(
+		"SELECT id FROM scheduled_executions WHERE account_id = %s AND agent_id = %s AND prompt = %s",
+		(account_id, agent[0], schedule["prompt"]),
+	)
+	if cursor.fetchone():
+		return False
+
+	# A paused schedule of the case was paused by its owner and the first launch comes after the delay of the case
+	paused = item.get("status") == "paused"
+	cursor.execute(
+		"INSERT INTO scheduled_executions (account_id, agent_id, kind, prompt, interval_seconds, threshold_usd, "
+		"cooldown_seconds, status, pause_reason, next_run_at) "
+		"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL %s SECOND)",
+		(
+			account_id,
+			agent[0],
+			schedule["kind"],
+			schedule["prompt"],
+			schedule["interval_seconds"],
+			schedule["threshold_usd"],
+			schedule["cooldown_seconds"],
+			"paused" if paused else "active",
+			"owner" if paused else None,
+			item.get("starts_in_seconds", 0),
+		),
+	)
+	return True
+
+
 # Create the default accounts of the active case
 def main() -> int:
 	case = load_case()
@@ -242,10 +284,13 @@ def main() -> int:
 		platform_id = platform[0] if platform else None
 		executions_created = sum(create_execution(cursor, item, platform_id) for item in case.get("executions", []))
 
+		# Create the schedules so the dispatch robot has something to launch
+		schedules_created = sum(create_schedule(cursor, item) for item in case.get("schedules", []))
+
 		# Save all accounts in a single transaction
 		conn.commit()
 		print(
-			f"[seed] Case '{case['key']}': {created} new account(s) and {agents_created} new agent(s) and {executions_created} new execution(s).",
+			f"[seed] Case '{case['key']}': {created} new account(s) and {agents_created} new agent(s) and {executions_created} new execution(s) and {schedules_created} new schedule(s).",
 			flush=True,
 		)
 		return 0

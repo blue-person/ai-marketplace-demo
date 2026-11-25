@@ -29,6 +29,12 @@ LIST_OWN_EXECUTIONS = "list_own_executions"
 VIEW_AGENT_EARNINGS = "view_agent_earnings"
 VIEW_EXECUTIONS = "view_executions"
 UNLOCK_ACCOUNT = "unlock_account"
+SCHEDULE_AGENT = "schedule_agent"
+LIST_OWN_SCHEDULES = "list_own_schedules"
+MANAGE_SCHEDULE = "manage_schedule"
+VIEW_SCHEDULES = "view_schedules"
+MODERATE_SCHEDULE = "moderate_schedule"
+DISPATCH_SCHEDULES = "dispatch_schedules"
 
 
 # Account that asks to perform an action
@@ -49,6 +55,13 @@ class AccountTarget:
 	country: str | None
 
 
+# Scheduled execution on which an action is performed and the account that owns it
+@dataclass(frozen=True)
+class ScheduleTarget:
+	id: int
+	account_id: int
+
+
 # Resource of the actions that do not act on one account
 @dataclass(frozen=True)
 class Platform:
@@ -63,7 +76,7 @@ rules = Cadurso()
 
 # True when the actor is a person that owns the account because the robot owns nothing
 def _is_person_owner(actor: Actor, target: AccountTarget) -> bool:
-	return actor.id == target.id and actor.role != "bot"
+	return actor.id == target.id and actor.role not in ("bot", "dispatcher")
 
 
 # Only administrators can browse the accounts
@@ -205,6 +218,42 @@ def admin_unlocks_account(actor: Actor, _target: AccountTarget) -> bool:
 	return actor.role == "admin"
 
 
+# Developers and companies schedule agents and the other roles do not have credit to spend
+@rules.add_rule(SCHEDULE_AGENT)
+def customer_schedules_agent(actor: Actor, _platform: Platform) -> bool:
+	return actor.role in ("developer", "company")
+
+
+# Developers and companies list their own schedules
+@rules.add_rule(LIST_OWN_SCHEDULES)
+def customer_lists_own_schedules(actor: Actor, _platform: Platform) -> bool:
+	return actor.role in ("developer", "company")
+
+
+# Only the owner pauses, resumes and cancels a schedule
+@rules.add_rule(MANAGE_SCHEDULE)
+def owner_manages_schedule(actor: Actor, target: ScheduleTarget) -> bool:
+	return actor.id == target.account_id and actor.role in ("developer", "company")
+
+
+# Only administrators read the schedules of everybody
+@rules.add_rule(VIEW_SCHEDULES)
+def admin_views_schedules(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "admin"
+
+
+# Administrators stop the schedule of any account and can undo their own pause
+@rules.add_rule(MODERATE_SCHEDULE)
+def admin_moderates_schedule(actor: Actor, _target: ScheduleTarget) -> bool:
+	return actor.role == "admin"
+
+
+# Only the dispatch robot lists the due schedules and launches them
+@rules.add_rule(DISPATCH_SCHEDULES)
+def dispatcher_dispatches_schedules(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "dispatcher"
+
+
 # No rule can be added after this point and queries are accepted only from here
 rules.freeze()
 
@@ -218,6 +267,8 @@ def can(actor: Actor, action: str, resource=PLATFORM) -> bool:
 
 # Return the id of the account that the action acts on or None
 def _target_id(resource) -> int | None:
+	if isinstance(resource, ScheduleTarget):
+		return resource.account_id
 	return resource.id if isinstance(resource, AccountTarget) else None
 
 

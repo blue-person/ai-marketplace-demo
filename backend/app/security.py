@@ -6,7 +6,7 @@ from flask import abort, g, request, session
 from . import audit, sessions
 from .api_keys import hash_api_key
 from .db import query
-from .rbac import LIST_ACCOUNTS, AccountTarget, Actor, require
+from .rbac import LIST_ACCOUNTS, VIEW_SCHEDULES, AccountTarget, Actor, ScheduleTarget, require
 
 # Constants
 TARGET_COLUMNS = "id, role, status, organization, country"
@@ -169,5 +169,18 @@ def authorized_target(actor: Actor, action: str, account_id: int) -> AccountTarg
 	if target is None:
 		require(actor, LIST_ACCOUNTS)
 		abort(404, description="The account was not found.")
+	require(actor, action, target)
+	return target
+
+
+# Load the schedule and refuse the actor that may not perform the action on it
+def authorized_schedule(actor: Actor, action: str, schedule_id: int) -> ScheduleTarget:
+	row = query("SELECT id, account_id FROM scheduled_executions WHERE id = %s", (schedule_id,), one=True)
+
+	# An actor that cannot browse schedules gets a 403 so it cannot probe which ids exist
+	if row is None:
+		require(actor, VIEW_SCHEDULES)
+		abort(404, description="The schedule was not found.")
+	target = ScheduleTarget(**row)
 	require(actor, action, target)
 	return target

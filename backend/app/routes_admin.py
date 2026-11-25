@@ -2,22 +2,24 @@
 from flask import Blueprint, abort, jsonify, request
 
 # Import modules
-from . import agents, audit, executions
+from . import agents, audit, executions, schedules
 from .accounts import LastAdminError, change_status, list_accounts, unlock_account
 from .rbac import (
 	APPROVE_REGISTRATION,
 	LIST_ACCOUNTS,
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
+	MODERATE_SCHEDULE,
 	REJECT_REGISTRATION,
 	REVIEW_AGENTS,
 	UNLOCK_ACCOUNT,
 	VIEW_AUDIT,
 	VIEW_EXECUTIONS,
+	VIEW_SCHEDULES,
 	require,
 )
 from .registration import REJECTION_REASONS, approve_account, pending_registrations, reject_account
-from .security import authorized_target, current_actor, login_required, read_json_object
+from .security import authorized_schedule, authorized_target, current_actor, login_required, read_json_object
 
 # Blueprint of the administrator routes
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -28,6 +30,9 @@ AGENT_NOT_PENDING = "The agent is not pending."
 STATUS_NOT_CHANGEABLE = "The account is not in the status that this action needs."
 LAST_ADMIN = "The platform needs at least one active administrator."
 NOT_LOCKED = "The account is not locked."
+SCHEDULE_NOT_ACTIVE = "The schedule is not active."
+SCHEDULE_NOT_PAUSED = "The schedule is not paused by an administrator."
+SCHEDULE_CANCELLED = "The schedule is already cancelled."
 MAX_EMAIL_LENGTH = 254
 
 
@@ -195,3 +200,44 @@ def list_audit_events():
 def list_executions():
 	require(current_actor(), VIEW_EXECUTIONS)
 	return jsonify(**executions.all_executions())
+
+
+# List the latest schedules of everybody without their prompts
+@bp.get("/schedules")
+@login_required
+def list_schedules():
+	require(current_actor(), VIEW_SCHEDULES)
+	return jsonify(schedules=schedules.all_schedules())
+
+
+# Pause the schedule of any account
+@bp.post("/schedules/<int:schedule_id>/pause")
+@login_required
+def pause_schedule(schedule_id):
+	actor = current_actor()
+	authorized_schedule(actor, MODERATE_SCHEDULE, schedule_id)
+	if not schedules.pause(schedule_id, actor.id, "admin"):
+		return jsonify(error=SCHEDULE_NOT_ACTIVE), 409
+	return jsonify(message="The schedule was paused.")
+
+
+# Resume a schedule that an administrator paused
+@bp.post("/schedules/<int:schedule_id>/resume")
+@login_required
+def resume_schedule(schedule_id):
+	actor = current_actor()
+	authorized_schedule(actor, MODERATE_SCHEDULE, schedule_id)
+	if not schedules.resume(schedule_id, actor.id, schedules.ADMIN_PAUSES):
+		return jsonify(error=SCHEDULE_NOT_PAUSED), 409
+	return jsonify(message="The schedule was resumed.")
+
+
+# Cancel the schedule of any account
+@bp.post("/schedules/<int:schedule_id>/cancel")
+@login_required
+def cancel_schedule(schedule_id):
+	actor = current_actor()
+	authorized_schedule(actor, MODERATE_SCHEDULE, schedule_id)
+	if not schedules.cancel(schedule_id, actor.id):
+		return jsonify(error=SCHEDULE_CANCELLED), 409
+	return jsonify(message="The schedule was cancelled.")

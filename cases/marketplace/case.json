@@ -37,5 +37,10 @@
     {"account": "company2@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Code Reviewer", "key": "6f1c1a52-0d7e-4a3b-8f5c-1b2a3c4d5e02", "prompt": "Review this function for mistakes.", "status": "failed", "failure_reason": "service_unavailable"},
     {"account": "dev1@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Text Summarizer", "key": "6f1c1a52-0d7e-4a3b-8f5c-1b2a3c4d5e03", "prompt": "Test run of my own agent.", "status": "completed", "response": "[Simulated reply from simulated/summary-1] I received: Test run of my own agent."}
   ],
+  "schedules": [
+    {"account": "company1@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Text Summarizer", "kind": "recurring", "prompt": "Summarize the latest report of the day in three lines.", "every": 1, "unit": "hours", "starts_in_seconds": 15},
+    {"account": "company2@marketplace.test", "developer": "dev2@marketplace.test", "agent": "Support Assistant", "kind": "conditional", "prompt": "Draft an answer for the oldest open support ticket.", "threshold_usd": "50.00", "cooldown_every": 1, "cooldown_unit": "hours"},
+    {"account": "dev2@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Code Reviewer", "kind": "recurring", "prompt": "Review the last change of the main branch.", "every": 1, "unit": "days", "status": "paused"}
+  ],
   "external_api": {"name": "OpenRouter (simulated)", "simulator_url": "http://mock-api:9000/openrouter/api/v1"}
 }

@@ -7,19 +7,24 @@ from werkzeug.exceptions import Forbidden
 from app import audit
 from app.rbac import (
 	APPROVE_REGISTRATION,
+	DISPATCH_SCHEDULES,
 	EXECUTE_AGENT,
 	LIST_ACCOUNTS,
 	LIST_OWN_AGENTS,
 	LIST_OWN_EXECUTIONS,
+	LIST_OWN_SCHEDULES,
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
 	MANAGE_API_KEY,
+	MANAGE_SCHEDULE,
+	MODERATE_SCHEDULE,
 	PLATFORM,
 	PUBLISH_AGENT,
 	RECEIVE_CREDIT,
 	REJECT_REGISTRATION,
 	RENAME_ACCOUNT,
 	REVIEW_AGENTS,
+	SCHEDULE_AGENT,
 	SEND_CREDIT,
 	SIGN_IN,
 	UNLOCK_ACCOUNT,
@@ -28,8 +33,10 @@ from app.rbac import (
 	VIEW_AUDIT,
 	VIEW_CATALOG,
 	VIEW_EXECUTIONS,
+	VIEW_SCHEDULES,
 	AccountTarget,
 	Actor,
+	ScheduleTarget,
 	can,
 	require,
 )
@@ -40,6 +47,7 @@ BOT = Actor(2, "bot", "active")
 DEVELOPER = Actor(3, "developer", "active")
 OTHER_DEVELOPER = Actor(4, "developer", "active")
 COMPANY = Actor(5, "company", "active")
+DISPATCHER = Actor(6, "dispatcher", "active")
 SUSPENDED_ADMIN = Actor(1, "admin", "suspended")
 SUSPENDED_DEVELOPER = Actor(3, "developer", "suspended")
 COMPLETE = AccountTarget(10, "company", "pending", "Acme Labs", "CO")
@@ -50,6 +58,8 @@ BOT_ACCOUNT = AccountTarget(2, "bot", "active", None, None)
 ADMIN_ACCOUNT = AccountTarget(1, "admin", "active", None, None)
 OTHER_ACCOUNT = AccountTarget(20, "company", "active", "Acme Labs", "CO")
 SYSTEM_ACCOUNT = AccountTarget(30, "system", "active", None, None)
+DISPATCHER_ACCOUNT = AccountTarget(6, "dispatcher", "active", None, None)
+DEVELOPER_SCHEDULE = ScheduleTarget(40, 3)
 
 
 # An administrator approves a pending account even when its profile is incomplete
@@ -283,3 +293,54 @@ def test_only_an_active_admin_views_all_the_executions(actor):
 def test_only_an_active_admin_unlocks_an_account(actor):
 	assert can(ADMIN, UNLOCK_ACCOUNT, DEVELOPER_ACCOUNT) is True
 	assert can(actor, UNLOCK_ACCOUNT, DEVELOPER_ACCOUNT) is False
+
+
+# Only an active developer or company schedules agents and lists the own schedules
+@pytest.mark.parametrize("action", [SCHEDULE_AGENT, LIST_OWN_SCHEDULES])
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY])
+def test_a_developer_and_a_company_schedule_agents(action, actor):
+	assert can(actor, action) is True
+
+
+# An administrator, both robots and a suspended account do not schedule agents
+@pytest.mark.parametrize("action", [SCHEDULE_AGENT, LIST_OWN_SCHEDULES])
+@pytest.mark.parametrize("actor", [ADMIN, BOT, DISPATCHER, SUSPENDED_DEVELOPER])
+def test_other_roles_and_suspended_accounts_do_not_schedule_agents(action, actor):
+	assert can(actor, action) is False
+
+
+# Only the owner manages the schedule and neither the administrator nor another account does
+@pytest.mark.parametrize("actor", [OTHER_DEVELOPER, COMPANY, ADMIN, BOT, DISPATCHER, SUSPENDED_DEVELOPER])
+def test_only_the_owner_manages_a_schedule(actor):
+	assert can(DEVELOPER, MANAGE_SCHEDULE, DEVELOPER_SCHEDULE) is True
+	assert can(actor, MANAGE_SCHEDULE, DEVELOPER_SCHEDULE) is False
+
+
+# Only an active administrator reads and moderates the schedules of everybody
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY, BOT, DISPATCHER, SUSPENDED_ADMIN])
+def test_only_an_active_admin_moderates_schedules(actor):
+	assert can(ADMIN, VIEW_SCHEDULES) is True
+	assert can(ADMIN, MODERATE_SCHEDULE, DEVELOPER_SCHEDULE) is True
+	assert can(actor, VIEW_SCHEDULES) is False
+	assert can(actor, MODERATE_SCHEDULE, DEVELOPER_SCHEDULE) is False
+
+
+# Only the dispatch robot launches schedules and the approval robot does not
+@pytest.mark.parametrize("actor", [ADMIN, BOT, DEVELOPER, COMPANY, SUSPENDED_ADMIN])
+def test_only_the_dispatch_robot_launches_schedules(actor):
+	assert can(DISPATCHER, DISPATCH_SCHEDULES) is True
+	assert can(actor, DISPATCH_SCHEDULES) is False
+
+
+# The dispatch robot cannot approve or list registrations and the approval robot cannot launch
+def test_each_robot_can_only_do_its_own_task():
+	assert can(DISPATCHER, APPROVE_REGISTRATION, COMPLETE) is False
+	assert can(DISPATCHER, LIST_REGISTRATIONS) is False
+	assert can(BOT, DISPATCH_SCHEDULES) is False
+
+
+# The dispatch robot owns nothing so it manages no key and no name
+def test_the_dispatch_robot_owns_no_account():
+	assert can(DISPATCHER, MANAGE_API_KEY, DISPATCHER_ACCOUNT) is False
+	assert can(DISPATCHER, RENAME_ACCOUNT, DISPATCHER_ACCOUNT) is False
+	assert can(DISPATCHER, SIGN_IN) is False

@@ -35,6 +35,13 @@ ACTIONS = {
 	"agent_executed": "execution",
 	"agent_execution_failed": "execution",
 	"agent_execution_expired": "execution",
+	"schedule_created": "schedule",
+	"schedule_paused": "schedule",
+	"schedule_resumed": "schedule",
+	"schedule_cancelled": "schedule",
+	"schedule_launched": "schedule",
+	"schedule_launch_failed": "schedule",
+	"schedule_auto_paused": "schedule",
 }
 CATEGORIES = tuple(dict.fromkeys(ACTIONS.values()))
 

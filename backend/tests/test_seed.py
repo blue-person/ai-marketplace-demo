@@ -5,6 +5,7 @@ import pytest
 # Import modules
 from app.agents import REJECTION_REASONS, validate_submission
 from app.config import load_case
+from app.schedules import validate_schedule
 from app.seed import read_service_key
 
 
@@ -61,3 +62,29 @@ def test_the_developers_of_the_agents_are_developer_accounts_of_the_case(monkeyp
 	case = load_case()
 	developers = {account["email"] for account in case["test_accounts"] if account["role"] == "developer"}
 	assert {agent["developer"] for agent in case["agents"]} <= developers
+
+
+# The schedules of the case follow the same rules as the ones that people create
+def test_the_schedules_of_the_case_pass_the_creation_rules(monkeypatch):
+	monkeypatch.setenv("CASE", "marketplace")
+	for item in load_case()["schedules"]:
+		assert validate_schedule({**item, "agent_id": 1})["kind"] == item["kind"]
+
+
+# The case has a recurring, a conditional and a paused schedule
+def test_the_case_has_a_recurring_a_conditional_and_a_paused_schedule(monkeypatch):
+	monkeypatch.setenv("CASE", "marketplace")
+	items = load_case()["schedules"]
+	assert {item["kind"] for item in items} == {"recurring", "conditional"}
+	assert [item["status"] for item in items if "status" in item] == ["paused"]
+
+
+# The accounts and the agents of the schedules exist in the case and the agents are approved
+def test_the_schedules_of_the_case_use_accounts_and_approved_agents_of_the_case(monkeypatch):
+	monkeypatch.setenv("CASE", "marketplace")
+	case = load_case()
+	owners = {account["email"]: account["role"] for account in case["test_accounts"]}
+	approved = {(agent["developer"], agent["name"]) for agent in case["agents"] if agent["status"] == "approved"}
+	for item in case["schedules"]:
+		assert owners[item["account"]] in ("developer", "company")
+		assert (item["developer"], item["agent"]) in approved
