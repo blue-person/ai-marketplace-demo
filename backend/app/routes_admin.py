@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 # Import modules
-from . import agents, audit
+from . import agents, audit, executions
 from .accounts import LastAdminError, change_status, list_accounts
 from .rbac import (
 	APPROVE_REGISTRATION,
@@ -12,6 +12,7 @@ from .rbac import (
 	REJECT_REGISTRATION,
 	REVIEW_AGENTS,
 	VIEW_AUDIT,
+	VIEW_EXECUTIONS,
 	require,
 )
 from .registration import REJECTION_REASONS, approve_account, pending_registrations, reject_account
@@ -173,3 +174,11 @@ def list_audit_events():
 	# A full page means there may be older events, and the last id is the marker to ask for them
 	next_before_id = events[-1]["id"] if len(events) == audit.PAGE_SIZE else None
 	return jsonify(events=events, categories=audit.CATEGORIES, next_before_id=next_before_id)
+
+
+# List the amounts of the latest executions and the balance of the platform account
+@bp.get("/executions")
+@login_required
+def list_executions():
+	require(current_actor(), VIEW_EXECUTIONS)
+	return jsonify(**executions.all_executions())

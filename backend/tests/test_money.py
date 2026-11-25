@@ -4,7 +4,7 @@ import pytest
 from werkzeug.exceptions import BadRequest
 
 # Import modules
-from app.money import parse_usd
+from app.money import parse_usd, split_revenue
 
 # Constants
 MAX = Decimal("9999999999.99")
@@ -48,3 +48,23 @@ def test_a_text_that_is_not_a_number_names_the_label():
 	with pytest.raises(BadRequest) as error:
 		parse_usd("abc", Decimal("1000.00"), "price")
 	assert error.value.description == "The price is not a valid number."
+
+
+# The two shares add up to the exact price for every price of 0.01 to 1000.00 with no rounding
+def test_the_shares_add_up_to_the_price_for_every_cent():
+	for cents in range(1, 100001):
+		price = Decimal(cents) / 100
+		developer_share, platform_fee = split_revenue(price)
+		assert developer_share + platform_fee == price
+		assert developer_share == price * Decimal("0.8")
+		assert platform_fee == price * Decimal("0.2")
+		assert developer_share.as_tuple().exponent >= -4
+		assert platform_fee.as_tuple().exponent >= -4
+
+
+# The shares are Decimal values and a price of one cent keeps fractions of a cent
+def test_the_shares_are_decimals_and_keep_fractions_of_a_cent():
+	developer_share, platform_fee = split_revenue(Decimal("0.01"))
+	assert (developer_share, platform_fee) == (Decimal("0.0080"), Decimal("0.0020"))
+	assert isinstance(developer_share, Decimal)
+	assert isinstance(platform_fee, Decimal)

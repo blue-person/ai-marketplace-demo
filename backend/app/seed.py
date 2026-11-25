@@ -8,6 +8,8 @@ import mysql.connector
 # Import modules
 from .api_keys import describe_api_key, new_api_key
 from .config import db_params, load_case
+from .executions import request_hash
+from .money import split_revenue
 from .passwords import hash_password
 
 # Constants
@@ -99,7 +101,7 @@ def create_account(cursor, account: dict, password: str, status: str) -> bool:
 	account_id = cursor.lastrowid
 
 	# Only active accounts that are not administrators or robots receive credit and a key
-	if status == "active" and account["role"] not in ("admin", "bot"):
+	if status == "active" and account["role"] not in ("admin", "bot", "system"):
 		add_seed_credit(cursor, account_id)
 		add_access(cursor, account_id, email)
 	return True
@@ -134,6 +136,63 @@ def create_agent(cursor, agent: dict, admin_id: int) -> bool:
 	return True
 
 
+# Move credit of an account and write its entry of the ledger for an execution
+def add_execution_credit(cursor, account_id: int, amount, entry_type: str, execution_id: int) -> None:
+	cursor.execute("UPDATE accounts SET balance = balance + %s WHERE id = %s", (amount, account_id))
+	cursor.execute(
+		"INSERT INTO ledger_entries (account_id, amount, entry_type, execution_id) VALUES (%s, %s, %s, %s)",
+		(account_id, amount, entry_type, execution_id),
+	)
+
+
+# Insert a finished execution of the case with its ledger entries unless the account already used its key
+def create_execution(cursor, execution: dict, platform_id: int) -> bool:
+	account_id = find_account_id(cursor, execution["account"])
+	developer_id = find_account_id(cursor, execution["developer"])
+	cursor.execute(
+		"SELECT id, price_usd FROM agents WHERE developer_id = %s AND name = %s", (developer_id, execution["agent"])
+	)
+	agent = cursor.fetchone()
+	cursor.execute(
+		"SELECT id FROM executions WHERE account_id = %s AND idempotency_key = %s", (account_id, execution["key"])
+	)
+	if account_id is None or agent is None or cursor.fetchone():
+		return False
+
+	# The developer runs the own agent for free and the shares exist only when something was paid
+	cost = 0 if account_id == developer_id else agent[1]
+	completed = execution["status"] == "completed"
+	developer_share, platform_fee = split_revenue(cost) if completed and cost else (None, None)
+	cursor.execute(
+		"INSERT INTO executions (account_id, agent_id, developer_id, idempotency_key, request_hash, prompt, response, "
+		"cost_usd, developer_share, platform_fee, status, failure_reason, finished_at) "
+		"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)",
+		(
+			account_id,
+			agent[0],
+			developer_id,
+			execution["key"],
+			request_hash(agent[0], execution["prompt"]),
+			execution["prompt"],
+			execution.get("response"),
+			cost,
+			developer_share,
+			platform_fee,
+			execution["status"],
+			execution.get("failure_reason"),
+		),
+	)
+	execution_id = cursor.lastrowid
+	if cost:
+		add_execution_credit(cursor, account_id, -cost, "agent_execution", execution_id)
+		if completed:
+			add_execution_credit(cursor, developer_id, developer_share, "agent_earning", execution_id)
+			add_execution_credit(cursor, platform_id, platform_fee, "platform_fee", execution_id)
+		else:
+			add_execution_credit(cursor, account_id, cost, "agent_refund", execution_id)
+	return True
+
+
 # Create the default accounts of the active case
 def main() -> int:
 	case = load_case()
@@ -156,6 +215,10 @@ def main() -> int:
 		created += create_account(cursor, admin, os.environ.get("ADMIN_PASSWORD", "admin123"), "active")
 		admin_id = find_account_id(cursor, admin["email"])
 
+		# Create the accounts of the system with a password nobody knows because they never sign in
+		for account in case.get("system_accounts", []):
+			created += create_account(cursor, account, secrets.token_urlsafe(32), "active")
+
 		# Create the test accounts listed in cases/<case>/case.json
 		for account in case.get("test_accounts", []):
 			created += create_account(cursor, account, seed_password, "active")
@@ -173,9 +236,18 @@ def main() -> int:
 		# Create the agents of the catalog in the three statuses
 		agents_created = sum(create_agent(cursor, agent, admin_id) for agent in case.get("agents", []))
 
+		# Create the finished executions so the history, the earnings and the refunds can be seen
+		cursor.execute("SELECT id FROM accounts WHERE role = 'system'")
+		platform = cursor.fetchone()
+		platform_id = platform[0] if platform else None
+		executions_created = sum(create_execution(cursor, item, platform_id) for item in case.get("executions", []))
+
 		# Save all accounts in a single transaction
 		conn.commit()
-		print(f"[seed] Case '{case['key']}': {created} new account(s) and {agents_created} new agent(s).", flush=True)
+		print(
+			f"[seed] Case '{case['key']}': {created} new account(s) and {agents_created} new agent(s) and {executions_created} new execution(s).",
+			flush=True,
+		)
 		return 0
 
 	# Undo partial changes when seeding fails

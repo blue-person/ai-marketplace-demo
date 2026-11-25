@@ -10,6 +10,8 @@ from .rbac import LIST_ACCOUNTS, AccountTarget, Actor, require
 
 # Constants
 TARGET_COLUMNS = "id, role, status, organization, country"
+SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+AJAX_HEADER = "X-Requested-With"
 
 
 # Read the signed in account from the database so a change of role or status applies at once
@@ -103,6 +105,43 @@ def api_key_required(view):
 		return view(*args, **kwargs)
 
 	return wrapper
+
+
+# True when the request authenticates with a key in the Authorization header
+def _has_key_header() -> bool:
+	return "Authorization" in request.headers
+
+
+# Refuse a request that changes data without a header and a JSON body that a form of another site cannot send
+def _require_ajax_request() -> None:
+	if not request.headers.get(AJAX_HEADER):
+		abort(403, description=f"The {AJAX_HEADER} header is required.")
+	if request.mimetype != "application/json":
+		abort(415, description="The request must be JSON.")
+
+
+# Accept the API key of the Authorization header or the session and protect the session against CSRF
+def key_or_session_required(view):
+
+	# Check who sends the request before calling the view
+	@wraps(view)
+	def wrapper(*args, **kwargs):
+		if _has_key_header():
+			if api_key_actor() is None:
+				audit.record_alone("authn_api_key_fail", "failure", None)
+				abort(401)
+		elif current_user() is None:
+			abort(401)
+		elif request.method not in SAFE_METHODS:
+			_require_ajax_request()
+		return view(*args, **kwargs)
+
+	return wrapper
+
+
+# Return the actor of the key or the session that key_or_session_required accepted
+def key_or_session_actor() -> Actor:
+	return api_key_actor() if _has_key_header() else current_actor()
 
 
 # Return the account with that id as the target of an action or None

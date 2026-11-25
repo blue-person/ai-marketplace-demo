@@ -4,10 +4,14 @@
     "developer": {"label": "Developer", "public_registration": true, "requires_approval": true},
     "company": {"label": "Company", "public_registration": true, "requires_approval": true},
     "admin": {"label": "Administrator", "public_registration": false, "requires_approval": false},
-    "bot": {"label": "Robot", "public_registration": false, "requires_approval": false}
+    "bot": {"label": "Robot", "public_registration": false, "requires_approval": false},
+    "system": {"label": "System", "public_registration": false, "requires_approval": false}
   },
   "service_accounts": [
     {"name": "Approval Robot", "email": "approval.robot@marketplace.test", "role": "bot", "api_key_env": "WORKER_API_KEY"}
+  ],
+  "system_accounts": [
+    {"name": "Platform", "email": "platform@marketplace.test", "role": "system"}
   ],
   "test_accounts": [
     {"name": "Developer One", "email": "dev1@marketplace.test", "role": "developer", "organization": "Dev Studio One", "country": "CO"},
@@ -25,6 +29,11 @@
     {"developer": "dev2@marketplace.test", "name": "Support Assistant", "description": "Drafts answers for customer support tickets.", "price_usd": "0.75", "category": "support", "test_endpoint": "https://support-assistant.example.test/health", "model": "simulated/echo-1", "status": "approved"},
     {"developer": "dev2@marketplace.test", "name": "Market Researcher", "description": "Collects public facts about a market and lists the sources.", "price_usd": "2.00", "category": "research", "test_endpoint": "https://market-researcher.example.test/health", "model": "simulated/summary-1", "status": "pending"},
     {"developer": "dev1@marketplace.test", "name": "Data Cleaner", "description": "Cleans a table.", "price_usd": "1.00", "category": "data", "test_endpoint": "https://data-cleaner.example.test/health", "model": "simulated/echo-1", "status": "rejected", "rejection_reason": "unclear_description"}
+  ],
+  "executions": [
+    {"account": "company1@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Text Summarizer", "key": "6f1c1a52-0d7e-4a3b-8f5c-1b2a3c4d5e01", "prompt": "Summarize the quarterly report in three lines.", "status": "completed", "response": "[Simulated reply from simulated/summary-1] I received: Summarize the quarterly report in three lines."},
+    {"account": "company2@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Code Reviewer", "key": "6f1c1a52-0d7e-4a3b-8f5c-1b2a3c4d5e02", "prompt": "Review this function for mistakes.", "status": "failed", "failure_reason": "service_unavailable"},
+    {"account": "dev1@marketplace.test", "developer": "dev1@marketplace.test", "agent": "Text Summarizer", "key": "6f1c1a52-0d7e-4a3b-8f5c-1b2a3c4d5e03", "prompt": "Test run of my own agent.", "status": "completed", "response": "[Simulated reply from simulated/summary-1] I received: Test run of my own agent."}
   ],
   "external_api": {"name": "OpenRouter (simulated)", "simulator_url": "http://mock-api:9000/openrouter/api/v1"}
 }

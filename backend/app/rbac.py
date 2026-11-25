@@ -24,6 +24,10 @@ PUBLISH_AGENT = "publish_agent"
 LIST_OWN_AGENTS = "list_own_agents"
 VIEW_CATALOG = "view_catalog"
 REVIEW_AGENTS = "review_agents"
+EXECUTE_AGENT = "execute_agent"
+LIST_OWN_EXECUTIONS = "list_own_executions"
+VIEW_AGENT_EARNINGS = "view_agent_earnings"
+VIEW_EXECUTIONS = "view_executions"
 
 
 # Account that asks to perform an action
@@ -67,10 +71,10 @@ def admin_lists_accounts(actor: Actor, _platform: Platform) -> bool:
 	return actor.role == "admin"
 
 
-# Administrators suspend and reactivate any account except their own
+# Administrators suspend and reactivate any account except their own and the system account
 @rules.add_rule(MANAGE_ACCOUNT_STATUS)
 def admin_manages_account_status(actor: Actor, target: AccountTarget) -> bool:
-	return actor.role == "admin" and actor.id != target.id
+	return actor.role == "admin" and actor.id != target.id and target.role != "system"
 
 
 # Administrators and the approval robot can read the pending registrations
@@ -167,6 +171,30 @@ def person_views_catalog(actor: Actor, _platform: Platform) -> bool:
 # Only administrators list the pending agents and approve or reject them
 @rules.add_rule(REVIEW_AGENTS)
 def admin_reviews_agents(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "admin"
+
+
+# Developers and companies run agents and the other roles do not have credit to spend
+@rules.add_rule(EXECUTE_AGENT)
+def customer_executes_agent(actor: Actor, _platform: Platform) -> bool:
+	return actor.role in ("developer", "company")
+
+
+# Developers and companies read their own executions
+@rules.add_rule(LIST_OWN_EXECUTIONS)
+def customer_lists_own_executions(actor: Actor, _platform: Platform) -> bool:
+	return actor.role in ("developer", "company")
+
+
+# Only developers read what their agents earned
+@rules.add_rule(VIEW_AGENT_EARNINGS)
+def developer_views_agent_earnings(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "developer"
+
+
+# Only administrators read the amounts of all the executions
+@rules.add_rule(VIEW_EXECUTIONS)
+def admin_views_executions(actor: Actor, _platform: Platform) -> bool:
 	return actor.role == "admin"
 
 

@@ -5,7 +5,7 @@ from flask import Blueprint, abort, jsonify
 # Import modules
 from . import audit
 from .db import query, retry_on_deadlock, transaction
-from .money import parse_usd
+from .money import NotEnoughBalanceError, parse_usd
 from .rbac import RECEIVE_CREDIT, SEND_CREDIT, can, require
 from .security import current_actor, current_user, find_target_by_email, login_required, read_json_object
 
@@ -15,11 +15,6 @@ bp = Blueprint("credit", __name__, url_prefix="/api/credit")
 # Constants
 MAX_AMOUNT = Decimal("9999999999.99")
 HISTORY_LIMIT = 50
-
-
-# Raised inside the transaction when the sender cannot pay so everything is undone
-class NotEnoughBalanceError(Exception):
-	pass
 
 
 # Lock both accounts in the order of their ids so two crossed transfers cannot deadlock

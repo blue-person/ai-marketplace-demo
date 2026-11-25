@@ -30,6 +30,9 @@ ACTIONS = {
 	"agent_submitted": "agent",
 	"agent_approved": "agent",
 	"agent_rejected": "agent",
+	"agent_executed": "execution",
+	"agent_execution_failed": "execution",
+	"agent_execution_expired": "execution",
 }
 CATEGORIES = tuple(dict.fromkeys(ACTIONS.values()))
 

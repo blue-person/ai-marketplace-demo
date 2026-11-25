@@ -7,8 +7,10 @@ from werkzeug.exceptions import Forbidden
 from app import audit
 from app.rbac import (
 	APPROVE_REGISTRATION,
+	EXECUTE_AGENT,
 	LIST_ACCOUNTS,
 	LIST_OWN_AGENTS,
+	LIST_OWN_EXECUTIONS,
 	LIST_REGISTRATIONS,
 	MANAGE_ACCOUNT_STATUS,
 	MANAGE_API_KEY,
@@ -21,8 +23,10 @@ from app.rbac import (
 	SEND_CREDIT,
 	SIGN_IN,
 	VIEW_ACCOUNT,
+	VIEW_AGENT_EARNINGS,
 	VIEW_AUDIT,
 	VIEW_CATALOG,
+	VIEW_EXECUTIONS,
 	AccountTarget,
 	Actor,
 	can,
@@ -44,6 +48,7 @@ DEVELOPER_ACCOUNT = AccountTarget(3, "developer", "active", "Dev Studio", "CO")
 BOT_ACCOUNT = AccountTarget(2, "bot", "active", None, None)
 ADMIN_ACCOUNT = AccountTarget(1, "admin", "active", None, None)
 OTHER_ACCOUNT = AccountTarget(20, "company", "active", "Acme Labs", "CO")
+SYSTEM_ACCOUNT = AccountTarget(30, "system", "active", None, None)
 
 
 # An administrator approves a pending account even when its profile is incomplete
@@ -236,3 +241,38 @@ def test_the_robot_and_a_suspended_account_cannot_view_the_catalog(actor):
 def test_only_an_active_admin_reviews_agents(actor):
 	assert can(ADMIN, REVIEW_AGENTS) is True
 	assert can(actor, REVIEW_AGENTS) is False
+
+
+# Nobody suspends the platform account, not even an administrator
+@pytest.mark.parametrize("actor", [ADMIN, DEVELOPER, BOT])
+def test_nobody_changes_the_status_of_the_platform_account(actor):
+	assert can(actor, MANAGE_ACCOUNT_STATUS, SYSTEM_ACCOUNT) is False
+
+
+# Only an active developer or company runs agents and lists the own executions
+@pytest.mark.parametrize("action", [EXECUTE_AGENT, LIST_OWN_EXECUTIONS])
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY])
+def test_a_developer_and_a_company_run_agents(action, actor):
+	assert can(actor, action) is True
+
+
+# An administrator, the robot and a suspended account do not run agents
+@pytest.mark.parametrize("action", [EXECUTE_AGENT, LIST_OWN_EXECUTIONS])
+@pytest.mark.parametrize("actor", [ADMIN, BOT, SUSPENDED_DEVELOPER])
+def test_other_roles_and_suspended_accounts_do_not_run_agents(action, actor):
+	assert can(actor, action) is False
+
+
+# Only an active developer reads the earnings of the agents
+@pytest.mark.parametrize("actor", [COMPANY, ADMIN, BOT, SUSPENDED_DEVELOPER])
+def test_only_an_active_developer_views_the_earnings(actor):
+	assert can(DEVELOPER, VIEW_AGENT_EARNINGS) is True
+	assert can(actor, VIEW_AGENT_EARNINGS) is False
+
+
+# Only an active administrator reads the amounts of all the executions
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY, BOT, SUSPENDED_ADMIN])
+def test_only_an_active_admin_views_all_the_executions(actor):
+	assert can(ADMIN, VIEW_EXECUTIONS) is True
+	assert can(actor, VIEW_EXECUTIONS) is False
+

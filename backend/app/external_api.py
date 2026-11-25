@@ -47,3 +47,17 @@ def list_models() -> list[str]:
 		return [model["id"] for model in response.json()["data"]]
 	except (ValueError, KeyError, TypeError) as error:
 		raise ExternalApiError("The list of models has an unexpected format") from error
+
+
+# Send the prompt to the model and return the text of the answer or raise ExternalApiError when it is unusable
+def chat_completion(model: str, prompt: str) -> str:
+	response = post(url("chat/completions"), {"model": model, "messages": [{"role": "user", "content": prompt}]})
+	if not response.ok:
+		raise ExternalApiError(f"HTTP {response.status_code}")
+	try:
+		content = response.json()["choices"][0]["message"]["content"]
+	except (ValueError, KeyError, IndexError, TypeError) as error:
+		raise ExternalApiError("The answer of the model has an unexpected format") from error
+	if not isinstance(content, str) or not content.strip():
+		raise ExternalApiError("The answer of the model is empty")
+	return content

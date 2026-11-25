@@ -4,7 +4,16 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 # Import modules
-from . import db, routes_admin, routes_agents, routes_auth, routes_credit, routes_general, routes_internal
+from . import (
+	db,
+	routes_admin,
+	routes_agents,
+	routes_auth,
+	routes_credit,
+	routes_executions,
+	routes_general,
+	routes_internal,
+)
 from .config import load_config
 
 
@@ -21,6 +30,7 @@ def create_app() -> Flask:
 	app.register_blueprint(routes_admin.bp)
 	app.register_blueprint(routes_agents.bp)
 	app.register_blueprint(routes_credit.bp)
+	app.register_blueprint(routes_executions.bp)
 	app.register_blueprint(routes_internal.bp)
 
 	# Close the database connection when the request context ends
