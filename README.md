@@ -4,7 +4,7 @@ This project is a web platform where developers publish artificial intelligence 
 
 ## Current status
 
-The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot that has an account of its own, the suspension and reactivation of accounts by an administrator, API keys sent by email, referral bonuses, credit transfers with a ledger, a catalog of agents that developers publish and administrators review, the execution of agents with a charge, a refund when the AI service fails, a history and a split of each payment between the developer and the platform, an audit log that an administrator reads in the panel, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. Scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
+The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot that has an account of its own, the suspension and reactivation of accounts by an administrator, API keys sent by email, referral bonuses, credit transfers with a ledger, a catalog of agents that developers publish and administrators review, the execution of agents with a charge, a refund when the AI service fails, a history and a split of each payment between the developer and the platform, a limit of failed sign in attempts with growing locks that an administrator can remove, sessions that live in the server and end by inactivity, an audit log that an administrator reads in the panel, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. Scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
 
 ## Services
 
@@ -54,6 +54,12 @@ curl -X POST http://localhost:8080/api/agents/1/executions \
 ```
 
 The prompt can have up to 2000 characters. The history is read with `GET /api/executions` and one execution with `GET /api/executions/<id>`. A developer reads the earnings of the own agents with `GET /api/agents/mine/executions`, and an administrator reads the amounts of all the executions with `GET /api/admin/executions`.
+
+## Sign in limits and sessions
+
+Each sign in attempt is counted for its email before the password is checked. The tenth failed attempt locks the email for 30 minutes, and each new lock lasts twice as long as the one before, up to 24 hours. A good sign in clears the count and the level. While an email is locked, the route answers 429 with the header `Retry-After` and the minutes that are left, even when the password is right. The count also exists for emails without an account, so the answer does not show which accounts exist. An administrator removes a lock with the Unlock button of the accounts table in the panel.
+
+A session is a row in the server and the cookie keeps only a random token. It ends after 15 minutes without requests or 8 hours after the sign in, and the sign out closes it in the server, so a copy of the cookie stops working. The interface sends the user to the sign in page with a notice when the server answers 401. The limits are the constants `IDLE_TIMEOUT_SECONDS` and `ABSOLUTE_TIMEOUT_SECONDS` in `backend/app/sessions.py`, and the lock times are in `backend/app/login_throttle.py`.
 
 ## Useful commands
 
