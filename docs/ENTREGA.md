@@ -38,6 +38,8 @@ Todas usan la contraseña `SEED_PASSWORD` del `.env`, salvo el administrador, qu
 | company (pendiente) | pending.complete@marketplace.test | Perfil completo. El robot la aprueba en su primer ciclo y dev1 recibe 5.00 USD. |
 | developer (pendiente) | pending.incomplete@marketplace.test | Sin perfil. Espera la decisión de un administrador. |
 
+La cuenta `platform@marketplace.test` (rol `system`) recibe el 20 % de cada ejecución. No inicia sesión y no se puede suspender. La semilla crea tres ejecuciones terminadas, una pagada de `company1` a un agente de `dev1`, una fallida y reembolsada de `company2` y una gratuita de `dev1` con su propio agente. Los saldos y los montos del libro usan cuatro decimales.
+
 Las API keys de las cuentas activas se imprimen una sola vez en el log del servicio `seed`, con `docker compose logs seed`.
 
 La semilla también crea cinco agentes de ejemplo para recorrer el catálogo. `dev1` tiene dos aprobados (Text Summarizer y Code Reviewer) y uno rechazado (Data Cleaner), y `dev2` tiene uno aprobado (Support Assistant) y uno pendiente (Market Researcher) que un administrador puede revisar en la pestaña Agents del panel.
@@ -49,10 +51,10 @@ La semilla también crea cinco agentes de ejemplo para recorrer el catálogo. `d
 | Registro y verificación (20 %) | completo | Registro con perfil y código de referido, aprobación o rechazo por un administrador, aprobación de los perfiles completos por el robot C++, API key enviada por correo con solo su hash guardado, bono de 5 USD al referidor y suspensión o reactivación de cuentas. |
 | Transferencias de crédito (10 %) | completo | Transferencias atómicas entre developers y companies, con bloqueo de filas en orden fijo y libro de movimientos. |
 | Catálogo de agentes (10 %) | completo | Los developers publican agentes con nombre, descripción, precio por ejecución, categoría, endpoint de prueba y modelo. Cada agente queda pendiente hasta que un administrador lo aprueba o lo rechaza con un motivo de una lista, y solo los aprobados aparecen en el catálogo, al que acceden las cuentas con sesión. El endpoint de prueba se guarda y se valida, pero el backend no lo invoca, y solo lo ven el dueño y los administradores. |
-| Ejecución de agentes (30 %) | no implementado | |
+| Ejecución de agentes (30 %) | completo | Developers y companies ejecutan agentes aprobados desde la página Executions o con su API key. La cabecera `Idempotency-Key` es obligatoria y evita cobrar dos veces. El precio se cobra primero, el modelo se llama fuera de la transacción y el pago (80 % al developer y 20 % a la cuenta de la plataforma) ocurre solo si el modelo responde. Si falla, el precio vuelve al usuario con un movimiento nuevo del libro. Un developer ejecuta sus propios agentes sin costo. El historial guarda el prompt (hasta 2000 caracteres) y la respuesta (hasta 4000). El usuario ve todo lo suyo, el developer ve agente, costo y ganancia sin el texto y el administrador ve solo montos. |
 | Ejecuciones programadas (30 %) | no implementado | |
 | Registro de auditoría (adicional) | completo | Registra quién hizo qué, cuándo y sobre quién, con los valores anteriores y nuevos. El administrador lo consulta en la pestaña Audit log. |
 
 ## Limitaciones conocidas
 
-Los módulos de ejecución de agentes y ejecuciones programadas todavía no están implementados.
+El módulo de ejecuciones programadas todavía no está implementado.

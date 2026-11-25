@@ -4,7 +4,7 @@ This project is a web platform where developers publish artificial intelligence 
 
 ## Current status
 
-The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot that has an account of its own, the suspension and reactivation of accounts by an administrator, API keys sent by email, referral bonuses, credit transfers with a ledger, a catalog of agents that developers publish and administrators review, an audit log that an administrator reads in the panel, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. Agent execution and scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
+The base works, and it includes sign up with a profile and a referral code, sign in, the approval of accounts by an administrator or by a C++ robot that has an account of its own, the suspension and reactivation of accounts by an administrator, API keys sent by email, referral bonuses, credit transfers with a ledger, a catalog of agents that developers publish and administrators review, the execution of agents with a charge, a refund when the AI service fails, a history and a split of each payment between the developer and the platform, an audit log that an administrator reads in the panel, a searchable directory, an editable profile, test emails and a call to a simulated external AI service. Scheduled executions have not been built yet. This document describes only what exists today and will grow as each module is completed.
 
 ## Services
 
@@ -39,7 +39,21 @@ When the build ends, the application is available at `http://localhost:8080` and
 
 ## Test accounts
 
-The admin signs in with `admin@template.test` and the password stored in `ADMIN_PASSWORD`. The four test accounts share the password stored in `SEED_PASSWORD`. They are `dev1@marketplace.test` and `dev2@marketplace.test` for developers, and `company1@marketplace.test` and `company2@marketplace.test` for companies. The seed also creates the account of the approval robot, which cannot sign in, and two pending registrations. One has a complete profile and the robot approves it in its first cycle, and the other has no profile and waits for an administrator. The seed also creates five example agents, three approved, one pending and one rejected, so the catalog and the review tab of the panel have data from the start. A developer publishes from the page Agents, an administrator approves or rejects from the tab Agents of the panel, and every signed in person reads the approved agents in the catalog.
+The admin signs in with `admin@template.test` and the password stored in `ADMIN_PASSWORD`. The four test accounts share the password stored in `SEED_PASSWORD`. They are `dev1@marketplace.test` and `dev2@marketplace.test` for developers, and `company1@marketplace.test` and `company2@marketplace.test` for companies. The seed also creates the account of the approval robot, which cannot sign in, and two pending registrations. One has a complete profile and the robot approves it in its first cycle, and the other has no profile and waits for an administrator. The seed also creates the account of the platform, which receives its share of each execution and cannot sign in or be suspended, and three finished executions that show a paid run, a run that failed and was refunded and a free run of an agent by its own developer. The seed also creates five example agents, three approved, one pending and one rejected, so the catalog and the review tab of the panel have data from the start. A developer publishes from the page Agents, an administrator approves or rejects from the tab Agents of the panel, and every signed in person reads the approved agents in the catalog.
+
+## Running an agent
+
+A developer or a company can run an approved agent from the page Executions of the interface, or with the API key of the account. The request needs an `Idempotency-Key` header with a UUID, so a retry of the same request returns the saved result and does not charge a second time. The same key with another prompt answers 422, and the same key while the first request still runs answers 409. The price is charged first, the AI service is called afterwards, and the payment of 80 percent to the developer and 20 percent to the platform happens only when the answer arrives. When the service fails the price returns to the balance through a new entry of the ledger. A developer runs the own agents for free. The example below uses the key that `docker compose logs seed` prints for `company1@marketplace.test`.
+
+```bash
+curl -X POST http://localhost:8080/api/agents/1/executions \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarize this text in one line."}'
+```
+
+The prompt can have up to 2000 characters. The history is read with `GET /api/executions` and one execution with `GET /api/executions/<id>`. A developer reads the earnings of the own agents with `GET /api/agents/mine/executions`, and an administrator reads the amounts of all the executions with `GET /api/admin/executions`.
 
 ## Useful commands
 
