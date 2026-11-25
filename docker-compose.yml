@@ -99,9 +99,27 @@ services:
     build: ./worker
     environment:
       BACKEND_URL: http://backend:8000
+      ROBOT_TASK: approvals
       WORKER_API_KEY: ${WORKER_API_KEY:?Set WORKER_API_KEY in the .env file}
       WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-60}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dispatcher:
+    # Same C++ robot with the dispatch task. It launches the due scheduled executions through the backend every second.
+    build: ./worker
+    environment:
+      BACKEND_URL: http://backend:8000
+      ROBOT_TASK: dispatch
+      # The robot reads its key from WORKER_API_KEY and here it receives the key of the dispatch account.
+      WORKER_API_KEY: ${DISPATCHER_API_KEY:?Set DISPATCHER_API_KEY in the .env file}
+      WORKER_INTERVAL_SECONDS: "1"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    # A launch can take up to 25 seconds, so Docker waits longer than its default of 10 before it kills the robot.
+    stop_grace_period: 30s
     depends_on:
       backend:
         condition: service_healthy
