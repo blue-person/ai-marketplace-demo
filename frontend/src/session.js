@@ -19,6 +19,11 @@ export const session = reactive({
 		localStorage.setItem("user", JSON.stringify(user));
 	},
 
+	forget() {
+		this.user = null;
+		localStorage.removeItem("user");
+	},
+
 	async sign_out() {
 		await api("/auth/logout", { method: "POST" }).catch(() => {});
 		this.user = null;

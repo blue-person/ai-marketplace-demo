@@ -58,6 +58,10 @@ function decide(registration, action, body) {
 	return run(`/admin/registrations/${registration.id}/${action}`, body);
 }
 
+function unlock(account) {
+	if (confirm(`Unlock ${account.email}?`)) run(`/admin/accounts/${account.id}/unlock`);
+}
+
 function change_account(account) {
 	if (confirm(`${action_labels[account.action]} ${account.email}?`)) {
 		run(`/admin/accounts/${account.id}/${account.action}`);
@@ -259,8 +263,20 @@ onMounted(load);
 						<td>{{ account.name }}</td>
 						<td>{{ account.email }}</td>
 						<td>{{ account.role }}</td>
-						<td>{{ account.status }}</td>
 						<td>
+							{{ account.status }}
+							<span v-if="account.locked_until" class="badge text-bg-warning ms-1">
+								Locked until {{ format_time(account.locked_until) }}
+							</span>
+						</td>
+						<td>
+							<button
+								v-if="account.can_unlock"
+								class="btn btn-outline-warning btn-sm me-1"
+								@click="unlock(account)"
+							>
+								Unlock
+							</button>
 							<button
 								v-if="account.action"
 								class="btn btn-outline-secondary btn-sm"

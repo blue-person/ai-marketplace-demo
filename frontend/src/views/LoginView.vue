@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api";
 import { session } from "@/session";
 
+const route = useRoute();
 const router = useRouter();
 const email = ref("");
 const password = ref("");
@@ -41,6 +42,9 @@ async function login() {
 					class="form-control"
 					autocomplete="current-password"
 				/>
+			</div>
+			<div v-if="route.query.expired && !error" class="alert alert-warning py-2">
+				Your session ended. Sign in again.
 			</div>
 			<div v-if="error" class="alert alert-danger py-2" v-html="error"></div>
 			<button class="btn btn-dark">Sign in</button>
