@@ -3,7 +3,7 @@ from flask import Blueprint, abort, jsonify, request
 
 # Import modules
 from . import agents, audit, executions
-from .accounts import LastAdminError, change_status, list_accounts
+from .accounts import LastAdminError, change_status, list_accounts, unlock_account
 from .rbac import (
 	APPROVE_REGISTRATION,
 	LIST_ACCOUNTS,
@@ -11,6 +11,7 @@ from .rbac import (
 	MANAGE_ACCOUNT_STATUS,
 	REJECT_REGISTRATION,
 	REVIEW_AGENTS,
+	UNLOCK_ACCOUNT,
 	VIEW_AUDIT,
 	VIEW_EXECUTIONS,
 	require,
@@ -26,6 +27,7 @@ NOT_PENDING = "The registration is not pending."
 AGENT_NOT_PENDING = "The agent is not pending."
 STATUS_NOT_CHANGEABLE = "The account is not in the status that this action needs."
 LAST_ADMIN = "The platform needs at least one active administrator."
+NOT_LOCKED = "The account is not locked."
 MAX_EMAIL_LENGTH = 254
 
 
@@ -139,6 +141,17 @@ def suspend_account(account_id):
 @login_required
 def reactivate_account(account_id):
 	return _change_account_status(account_id, "suspended", "active", "The account was reactivated.")
+
+
+# Remove the lock that too many failed logins put on an account
+@bp.post("/accounts/<int:account_id>/unlock")
+@login_required
+def unlock_locked_account(account_id):
+	actor = current_actor()
+	authorized_target(actor, UNLOCK_ACCOUNT, account_id)
+	if not unlock_account(account_id, actor.id):
+		return jsonify(error=NOT_LOCKED), 409
+	return jsonify(message="The account was unlocked.")
 
 
 # Read the filters of the audit log and refuse the values that are not valid

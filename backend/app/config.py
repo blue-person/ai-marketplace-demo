@@ -4,6 +4,9 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+# Import modules
+from .sessions import ABSOLUTE_TIMEOUT_SECONDS
+
 # Constants
 CASES_ROOT = Path(__file__).resolve().parents[2] / "cases"
 
@@ -41,7 +44,7 @@ def load_config() -> dict:
 		"SECRET_KEY": os.environ.get("SECRET_KEY", "template-secret"),
 		"SESSION_COOKIE_NAME": "session",
 		"SESSION_COOKIE_HTTPONLY": False,
-		"PERMANENT_SESSION_LIFETIME": timedelta(days=30),
+		"PERMANENT_SESSION_LIFETIME": timedelta(seconds=ABSOLUTE_TIMEOUT_SECONDS),
 		"CASE": case,
 		"DB": db_params(),
 		"SMTP_HOST": os.environ.get("SMTP_HOST", "mailpit"),

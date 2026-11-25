@@ -16,6 +16,8 @@ ACTIONS = {
 	"authn_login_fail": "authn",
 	"authn_logout": "authn",
 	"authn_api_key_fail": "authn",
+	"authn_account_locked": "authn",
+	"authn_account_unlocked": "authn",
 	"authz_fail": "authz",
 	"user_created": "registration",
 	"registration_approved": "registration",

@@ -3,7 +3,7 @@ from functools import wraps
 from flask import abort, g, request, session
 
 # Import modules
-from . import audit
+from . import audit, sessions
 from .api_keys import hash_api_key
 from .db import query
 from .rbac import LIST_ACCOUNTS, AccountTarget, Actor, require
@@ -16,7 +16,12 @@ AJAX_HEADER = "X-Requested-With"
 
 # Read the signed in account from the database so a change of role or status applies at once
 def _read_signed_in_user() -> dict | None:
-	account_id = session.get("account_id")
+	token = session.get("sid")
+	if token is None:
+		return None
+
+	# A session that is idle, too old or closed has no account
+	account_id = sessions.touch(token)
 	if account_id is None:
 		return None
 	user = query("SELECT id, name, email, role, status FROM accounts WHERE id = %s", (account_id,), one=True)

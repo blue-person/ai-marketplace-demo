@@ -1,7 +1,7 @@
 # Import modules
-from . import audit
+from . import audit, login_throttle
 from .db import query, retry_on_deadlock, transaction
-from .rbac import MANAGE_ACCOUNT_STATUS, AccountTarget, Actor, can
+from .rbac import MANAGE_ACCOUNT_STATUS, UNLOCK_ACCOUNT, AccountTarget, Actor, can
 
 # Constants
 STATUS_ACTIONS = {"active": "suspend", "suspended": "reactivate"}
@@ -16,6 +16,7 @@ class LastAdminError(Exception):
 # List the accounts with the status action that the actor may offer for each one
 def list_accounts(actor: Actor) -> list[dict]:
 	rows = query("SELECT id, name, email, role, status, organization, country, created_at FROM accounts ORDER BY id")
+	locks = login_throttle.locks_of([row["email"] for row in rows])
 	accounts = []
 	for row in rows:
 		target = AccountTarget(row["id"], row["role"], row["status"], row["organization"], row["country"])
@@ -32,9 +33,17 @@ def list_accounts(actor: Actor) -> list[dict]:
 				"status": row["status"],
 				"created_at": row["created_at"],
 				"action": action if allowed else None,
+				"locked_until": locks.get(row["email"]),
+				"can_unlock": row["email"] in locks and can(actor, UNLOCK_ACCOUNT, target),
 			}
 		)
 	return accounts
+
+
+# Remove the lock of an account and return False when it was not locked
+def unlock_account(account_id: int, admin_id: int) -> bool:
+	row = query("SELECT email FROM accounts WHERE id = %s", (account_id,), one=True)
+	return login_throttle.unlock(row["email"], account_id, admin_id)
 
 
 # Lock the active administrators by id so two that suspend each other are served one at a time

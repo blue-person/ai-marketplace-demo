@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
 # Import modules
-from . import audit, mail
+from . import audit, login_throttle, mail, sessions
 from .countries import is_valid_country
 from .db import DuplicateError, query, retry_on_deadlock, transaction
 from .email_address import InvalidEmailError, normalize_email
@@ -23,6 +23,7 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 # Constants
 LOGIN_ERROR = "Incorrect email or password."
+SECONDS_PER_MINUTE = 60
 MAX_EMAIL_LENGTH = 254
 
 
@@ -47,7 +48,7 @@ def _replace_hash(account_id: int, password_hash: str) -> None:
 
 
 # Record a failed login with the account when it exists and with the typed email when it does not
-def _record_login_failure(account: dict | None, email: str, reason: str) -> None:
+def _record_login_failure(account: dict | None, email: str, reason: str, reservation=None) -> None:
 	audit.record_alone(
 		"authn_login_fail",
 		"failure",
@@ -56,6 +57,20 @@ def _record_login_failure(account: dict | None, email: str, reason: str) -> None
 		None if account else email[:MAX_EMAIL_LENGTH],
 		{"reason": reason},
 	)
+
+	# The lock that this failed attempt closed is recorded after it
+	if reservation is not None:
+		login_throttle.record_lock(reservation, email, account["id"] if account else None)
+
+
+# Answer for an email that is locked with the time that is left and the header that browsers and clients read
+def _locked_response(seconds: int):
+	minutes = -(-seconds // SECONDS_PER_MINUTE)
+	unit = "minute" if minutes == 1 else "minutes"
+	response = jsonify(error=f"The account is locked. Try again in {minutes} {unit}.")
+	response.status_code = 429
+	response.headers["Retry-After"] = str(seconds)
+	return response
 
 
 # Read the JSON object or fall back to the form fields when the body is anything else
@@ -146,8 +161,8 @@ def login():
 	email = str(data.get("email", "")).strip().lower()
 	password = str(data.get("password", ""))
 
-	# A password longer than the maximum cannot be valid, so it is refused before the costly hash
-	if len(password) > MAX_PASSWORD_LENGTH:
+	# An email longer than the column cannot belong to an account, so it gets no row in the counter
+	if len(email) > MAX_EMAIL_LENGTH:
 		_record_login_failure(None, email, "wrong_credentials")
 		return jsonify(error=LOGIN_ERROR), 401
 
@@ -158,27 +173,42 @@ def login():
 		one=True,
 	)
 
+	# The counter uses the email stored in the account, so spellings that MySQL treats as equal share it
+	counted_email = account["email"] if account else email
+
+	# The attempt is counted before the password is checked, so simultaneous attempts cannot pass the limit
+	reservation = login_throttle.reserve_attempt(counted_email)
+	if reservation.seconds_left is not None:
+		return _locked_response(reservation.seconds_left)
+
+	# A password longer than the maximum cannot be valid, so it is refused before the costly hash
+	if len(password) > MAX_PASSWORD_LENGTH:
+		_record_login_failure(account, email, "wrong_credentials", reservation)
+		return jsonify(error=LOGIN_ERROR), 401
+
 	# Check the password even when the account does not exist
 	stored_hash = account["password_hash"] if account else None
 	password_matches = verify_password(stored_hash, password)
 
 	# Every failed login gets the same answer
 	if not account or not password_matches:
-		_record_login_failure(account, email, "wrong_credentials")
+		_record_login_failure(account, email, "wrong_credentials", reservation)
 		return jsonify(error=LOGIN_ERROR), 401
 
 	# The audit log tells an administrator that the password was right and the account cannot sign in
 	if not _may_sign_in(account):
-		_record_login_failure(account, email, "not_allowed")
+		_record_login_failure(account, email, "not_allowed", reservation)
 		return jsonify(error=LOGIN_ERROR), 401
 
 	# Replace the stored hash when it was made with older settings
 	if needs_rehash(stored_hash):
 		_replace_hash(account["id"], hash_password(password))
 
-	# Store only the id because the role and the status are read again on each request
+	# A good login forgets the failures and the cookie keeps only the random token of a new server session
+	login_throttle.clear(counted_email)
+	session.clear()
 	session.permanent = True
-	session["account_id"] = account["id"]
+	session["sid"] = sessions.start(account["id"])
 	audit.record_alone("authn_login_success", "success", account["id"], account["id"])
 
 	# Send only the fields the interface needs
@@ -193,6 +223,10 @@ def logout():
 	user = current_user()
 	if user is not None:
 		audit.record_alone("authn_logout", "success", user["id"], user["id"])
+
+	# The session is closed in the server, so a copy of the cookie stops working
+	if "sid" in session:
+		sessions.end(session["sid"])
 	session.clear()
 	return jsonify(message="Signed out.")
 

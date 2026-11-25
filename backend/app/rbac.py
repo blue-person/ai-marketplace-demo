@@ -28,6 +28,7 @@ EXECUTE_AGENT = "execute_agent"
 LIST_OWN_EXECUTIONS = "list_own_executions"
 VIEW_AGENT_EARNINGS = "view_agent_earnings"
 VIEW_EXECUTIONS = "view_executions"
+UNLOCK_ACCOUNT = "unlock_account"
 
 
 # Account that asks to perform an action
@@ -195,6 +196,12 @@ def developer_views_agent_earnings(actor: Actor, _platform: Platform) -> bool:
 # Only administrators read the amounts of all the executions
 @rules.add_rule(VIEW_EXECUTIONS)
 def admin_views_executions(actor: Actor, _platform: Platform) -> bool:
+	return actor.role == "admin"
+
+
+# Only administrators unlock an account that failed too many logins
+@rules.add_rule(UNLOCK_ACCOUNT)
+def admin_unlocks_account(actor: Actor, _target: AccountTarget) -> bool:
 	return actor.role == "admin"
 
 

@@ -22,6 +22,7 @@ from app.rbac import (
 	REVIEW_AGENTS,
 	SEND_CREDIT,
 	SIGN_IN,
+	UNLOCK_ACCOUNT,
 	VIEW_ACCOUNT,
 	VIEW_AGENT_EARNINGS,
 	VIEW_AUDIT,
@@ -276,3 +277,9 @@ def test_only_an_active_admin_views_all_the_executions(actor):
 	assert can(ADMIN, VIEW_EXECUTIONS) is True
 	assert can(actor, VIEW_EXECUTIONS) is False
 
+
+# Only an active administrator unlocks an account
+@pytest.mark.parametrize("actor", [DEVELOPER, COMPANY, BOT, SUSPENDED_ADMIN])
+def test_only_an_active_admin_unlocks_an_account(actor):
+	assert can(ADMIN, UNLOCK_ACCOUNT, DEVELOPER_ACCOUNT) is True
+	assert can(actor, UNLOCK_ACCOUNT, DEVELOPER_ACCOUNT) is False

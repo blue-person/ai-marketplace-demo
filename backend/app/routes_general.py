@@ -1,5 +1,5 @@
 # Import libraries
-from flask import Blueprint, abort, current_app, jsonify, request, session
+from flask import Blueprint, abort, current_app, jsonify, request
 
 # Import modules
 from . import audit, external_api
@@ -8,7 +8,7 @@ from .db import query, retry_on_deadlock, transaction
 from .passwords import PASSWORD_RULES
 from .rbac import MANAGE_API_KEY, RENAME_ACCOUNT, VIEW_ACCOUNT
 from .registration import MAX_NAME_LENGTH, regenerate_api_key
-from .security import authorized_target, current_actor, login_required, read_json_object
+from .security import authorized_target, current_actor, current_user, login_required, read_json_object
 
 # Blueprint of the general routes
 bp = Blueprint("general", __name__, url_prefix="/api")
@@ -132,7 +132,7 @@ def external_api_example():
 		if case_key == "healthsync":
 			response = external_api.get(
 				external_api.url("dataPoints"),
-				params={"schema": "heart-rate", "user": session["account_id"], "days": 1},
+				params={"schema": "heart-rate", "user": current_user()["id"], "days": 1},
 			)
 			return jsonify(source="Open mHealth (simulated)", samples=response.json()[:5])
 
