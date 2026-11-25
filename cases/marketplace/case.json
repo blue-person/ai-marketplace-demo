@@ -5,10 +5,12 @@
     "company": {"label": "Company", "public_registration": true, "requires_approval": true},
     "admin": {"label": "Administrator", "public_registration": false, "requires_approval": false},
     "bot": {"label": "Robot", "public_registration": false, "requires_approval": false},
+    "dispatcher": {"label": "Dispatch Robot", "public_registration": false, "requires_approval": false},
     "system": {"label": "System", "public_registration": false, "requires_approval": false}
   },
   "service_accounts": [
-    {"name": "Approval Robot", "email": "approval.robot@marketplace.test", "role": "bot", "api_key_env": "WORKER_API_KEY"}
+    {"name": "Approval Robot", "email": "approval.robot@marketplace.test", "role": "bot", "api_key_env": "WORKER_API_KEY"},
+    {"name": "Dispatch Robot", "email": "dispatch.robot@marketplace.test", "role": "dispatcher", "api_key_env": "DISPATCHER_API_KEY"}
   ],
   "system_accounts": [
     {"name": "Platform", "email": "platform@marketplace.test", "role": "system"}

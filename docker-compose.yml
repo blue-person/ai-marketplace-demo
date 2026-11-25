@@ -56,6 +56,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SEED_PASSWORD: ${SEED_PASSWORD}
       WORKER_API_KEY: ${WORKER_API_KEY}
+      DISPATCHER_API_KEY: ${DISPATCHER_API_KEY:?Set DISPATCHER_API_KEY in the .env file}
     depends_on:
       db:
         condition: service_healthy
