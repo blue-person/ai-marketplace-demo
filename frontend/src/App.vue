@@ -41,6 +41,9 @@ async function sign_out() {
 				<li class="nav-item" v-if="session.user && ['developer', 'company'].includes(session.user.role)">
 					<RouterLink class="nav-link" to="/executions">Executions</RouterLink>
 				</li>
+				<li class="nav-item" v-if="session.user && ['developer', 'company'].includes(session.user.role)">
+					<RouterLink class="nav-link" to="/schedules">Schedules</RouterLink>
+				</li>
 				<li class="nav-item" v-if="session.user && session.user.role === 'admin'">
 					<RouterLink class="nav-link" to="/admin">Admin</RouterLink>
 				</li>

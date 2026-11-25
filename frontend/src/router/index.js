@@ -9,6 +9,7 @@ import CreditView from "@/views/CreditView.vue";
 import AdminView from "@/views/AdminView.vue";
 import AgentsView from "@/views/AgentsView.vue";
 import ExecutionsView from "@/views/ExecutionsView.vue";
+import SchedulesView from "@/views/SchedulesView.vue";
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -24,6 +25,12 @@ const router = createRouter({
 			path: "/executions",
 			name: "executions",
 			component: ExecutionsView,
+			meta: { requires_session: true, roles: ["developer", "company"] },
+		},
+		{
+			path: "/schedules",
+			name: "schedules",
+			component: SchedulesView,
 			meta: { requires_session: true, roles: ["developer", "company"] },
 		},
 		// The role check here only saves a click, because the backend refuses the requests of other roles

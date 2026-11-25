@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { api } from "@/api";
 import AdminAgents from "@/views/AdminAgents.vue";
 import AdminExecutions from "@/views/AdminExecutions.vue";
+import AdminSchedules from "@/views/AdminSchedules.vue";
 
 const registrations = ref([]);
 const accounts = ref([]);
@@ -28,6 +29,7 @@ const category_labels = {
 	credit: "Credit",
 	agent: "Agent",
 	execution: "Execution",
+	schedule: "Schedule",
 };
 
 // The backend sends the list, so the page only shows it again after each action.
@@ -138,12 +140,18 @@ onMounted(load);
 				</button>
 			</li>
 			<li class="nav-item">
+				<button class="nav-link" :class="{ active: tab === 'schedules' }" @click="tab = 'schedules'">
+					Schedules
+				</button>
+			</li>
+			<li class="nav-item">
 				<button class="nav-link" :class="{ active: tab === 'audit' }" @click="open_audit">Audit log</button>
 			</li>
 		</ul>
 
 		<AdminAgents v-if="tab === 'agents'" />
 		<AdminExecutions v-if="tab === 'executions'" />
+		<AdminSchedules v-if="tab === 'schedules'" />
 
 		<div v-if="tab === 'audit'">
 			<h1 class="h3 mb-3">Audit log</h1>
