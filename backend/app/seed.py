@@ -101,7 +101,7 @@ def create_account(cursor, account: dict, password: str, status: str) -> bool:
 	account_id = cursor.lastrowid
 
 	# Only active accounts that are not administrators or robots receive credit and a key
-	if status == "active" and account["role"] not in ("admin", "bot", "system"):
+	if status == "active" and account["role"] not in ("admin", "bot", "dispatcher", "system"):
 		add_seed_credit(cursor, account_id)
 		add_access(cursor, account_id, email)
 	return True

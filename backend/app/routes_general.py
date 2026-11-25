@@ -51,7 +51,7 @@ def directory():
 
 	# Send the whole pattern as one parameter and leave the robots and the system account out of the list
 	results = query(
-		"SELECT id, name, role FROM accounts WHERE status = 'active' AND role NOT IN ('bot', 'system') AND name LIKE %s ORDER BY name",
+		"SELECT id, name, role FROM accounts WHERE status = 'active' AND role NOT IN ('bot', 'dispatcher', 'system') AND name LIKE %s ORDER BY name",
 		(f"%{term}%",),
 	)
 	return jsonify(results=results)
