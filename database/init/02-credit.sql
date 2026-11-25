@@ -1,14 +1,14 @@
 -- Credit of each account, its transfers and the append-only ledger.
 
 ALTER TABLE accounts
-    ADD COLUMN balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    ADD COLUMN balance DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
     ADD CONSTRAINT ck_accounts_balance CHECK (balance >= 0);
 
 CREATE TABLE transfers (
     id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     from_account_id  BIGINT UNSIGNED NOT NULL,
     to_account_id    BIGINT UNSIGNED NOT NULL,
-    amount           DECIMAL(12,2)   NOT NULL,
+    amount           DECIMAL(12,4)   NOT NULL,
     created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_transfers_from FOREIGN KEY (from_account_id) REFERENCES accounts (id),
     CONSTRAINT fk_transfers_to FOREIGN KEY (to_account_id) REFERENCES accounts (id),
@@ -21,7 +21,7 @@ CREATE TABLE transfers (
 CREATE TABLE ledger_entries (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     account_id   BIGINT UNSIGNED NOT NULL,
-    amount       DECIMAL(12,2)   NOT NULL,
+    amount       DECIMAL(12,4)   NOT NULL,
     entry_type   ENUM('seed_credit', 'transfer_out', 'transfer_in') NOT NULL,
     transfer_id  BIGINT UNSIGNED NULL,
     created_at   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,

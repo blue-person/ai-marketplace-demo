@@ -3,7 +3,7 @@
 CREATE TABLE audit_events (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     created_at    TIMESTAMP(3)    NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    category      ENUM('authn', 'authz', 'registration', 'account', 'credit', 'agent') NOT NULL,
+    category      ENUM('authn', 'authz', 'registration', 'account', 'credit', 'agent', 'execution') NOT NULL,
     action        VARCHAR(50)     NOT NULL,
     outcome       ENUM('success', 'failure') NOT NULL,
     -- Empty when nobody is signed in, for example a failed login
