@@ -7,14 +7,15 @@ export class ApiError extends Error {
 	}
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+export async function api(path, { method = "GET", body, headers = {} } = {}) {
 	const options = {
 		method,
 		credentials: "include",
-		headers: { Accept: "application/json" },
+		headers: { Accept: "application/json", ...headers },
 	};
 	if (method !== "GET") {
 		options.headers["Content-Type"] = "application/json";
+		options.headers["X-Requested-With"] = "fetch";
 		options.body = JSON.stringify(body ?? {});
 	}
 	const response = await fetch(`/api${path}`, options);

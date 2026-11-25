@@ -16,6 +16,7 @@ const form = ref({ ...empty_form });
 
 // The role only decides what is shown, because the backend refuses the requests of other roles.
 const is_developer = computed(() => session.user && session.user.role === "developer");
+const can_run = computed(() => session.user && ["developer", "company"].includes(session.user.role));
 const status_classes = { pending: "text-bg-warning", approved: "text-bg-success", rejected: "text-bg-danger" };
 
 function category_label(key) {
@@ -102,9 +103,16 @@ onMounted(async () => {
 						<span class="badge text-bg-secondary me-1">{{ category_label(agent.category) }}</span>
 						<span class="badge text-bg-light border">{{ agent.model }}</span>
 					</div>
-					<div class="card-footer d-flex justify-content-between small">
+					<div class="card-footer d-flex justify-content-between align-items-center small">
 						<span>{{ agent.developer_name }}</span>
 						<strong>{{ agent.price_usd }} USD</strong>
+						<RouterLink
+							v-if="can_run"
+							class="btn btn-sm btn-dark"
+							:to="{ name: 'executions', query: { agent: agent.id } }"
+						>
+							Run
+						</RouterLink>
 					</div>
 				</div>
 			</div>
